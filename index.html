@@ -7,93 +7,77 @@
   <title>LEITOR INTELIGENTE</title>
 
   <!--
-    BIBLIOTECAS EXTERNAS
-    1) ZXing: leitura de códigos 1D/2D no navegador.
-       Versão fixada para evitar mudanças inesperadas de uma versão "latest".
-    2) Tesseract.js: OCR executado no navegador.
-       Nenhuma imagem da câmera é enviada por este código para um servidor.
+    Biblioteca usada:
+    ZXing Browser 0.2.1
+    - Leitura de códigos 1D e 2D diretamente no navegador.
+    - O detector recebe somente o crop matemático da área de leitura.
+    - Nenhuma imagem é enviada para um servidor pelo código abaixo.
   -->
   <script src="https://unpkg.com/@zxing/browser@0.2.1"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js"></script>
 
   <style>
     :root {
       --bg: #0b1220;
       --panel: #111a2b;
-      --panel-2: #172235;
+      --panel2: #172235;
       --border: #27364f;
       --text: #f5f7fb;
       --muted: #9aa8bd;
       --primary: #2f80ed;
-      --primary-2: #1f6ed4;
-      --success: #24b47e;
-      --warning: #f0a33a;
-      --danger: #e05252;
-      --radius: 16px;
+      --success: #20c997;
+      --warning: #f2c94c;
+      --danger: #eb5757;
     }
 
     * { box-sizing: border-box; }
 
-    html, body {
-      margin: 0;
-      min-height: 100%;
-      background: var(--bg);
-      color: var(--text);
-      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
     body {
-      padding: 20px;
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(160deg, #08101d, #111a2b);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
     }
 
-    button {
-      font: inherit;
-      border: 0;
-      cursor: pointer;
-      touch-action: manipulation;
-    }
-
-    .app {
-      width: min(980px, 100%);
+    main {
+      width: min(720px, 100%);
       margin: 0 auto;
+      padding: 20px 14px 30px;
     }
 
     header {
+      text-align: center;
       margin-bottom: 18px;
     }
 
     h1 {
       margin: 0;
-      font-size: clamp(25px, 5vw, 36px);
-      letter-spacing: .02em;
+      font-size: clamp(25px, 6vw, 36px);
+      letter-spacing: 1px;
     }
 
-    header p {
-      margin: 5px 0 0;
+    .subtitle {
+      margin: 6px 0 0;
       color: var(--muted);
-      font-size: 15px;
+      font-size: 14px;
     }
 
-    .panel {
-      background: var(--panel);
+    .card {
+      background: rgba(17, 26, 43, .96);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px;
-      box-shadow: 0 14px 35px rgba(0,0,0,.18);
-      margin-bottom: 16px;
+      border-radius: 18px;
+      padding: 14px;
+      box-shadow: 0 14px 40px rgba(0,0,0,.22);
     }
 
     .camera-wrap {
       position: relative;
       width: 100%;
-      aspect-ratio: 16 / 10;
-      min-height: 300px;
-      max-height: 70vh;
+      aspect-ratio: 16 / 9;
       overflow: hidden;
+      border-radius: 14px;
       background: #050a12;
-      border-radius: 13px;
       border: 1px solid var(--border);
-      isolation: isolate;
     }
 
     video {
@@ -102,15 +86,15 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      background: #050a12;
+      background: #000;
     }
 
-    .camera-placeholder {
+    .placeholder {
       position: absolute;
       inset: 0;
       display: grid;
       place-items: center;
-      padding: 25px;
+      padding: 30px;
       text-align: center;
       color: var(--muted);
       z-index: 2;
@@ -118,1197 +102,863 @@
     }
 
     /*
-      ROI:
-      x/y/width/height são armazenados em porcentagem do viewport.
-      Isso permite manter a posição/tamanho mesmo quando a tela muda de tamanho.
+      ÁREA FIXA DE LEITURA
+
+      O tamanho padrão foi reduzido em relação à versão anterior:
+      72% da largura x 18% da altura do visor.
+
+      A área é propositalmente horizontal porque códigos de barras 1D
+      normalmente ocupam uma faixa horizontal. Ela não pode mais ser
+      redimensionada ou movida pelo usuário.
     */
     .roi {
       position: absolute;
-      left: 25%;
-      top: 35%;
-      width: 50%;
-      height: 30%;
-      z-index: 5;
-      border: 2px solid #fff;
+      left: 14%;
+      top: 41%;
+      width: 72%;
+      height: 18%;
+      border: 3px solid #20c997;
       border-radius: 8px;
-      box-shadow: 0 0 0 9999px rgba(0,0,0,.54);
+      z-index: 4;
       pointer-events: none;
-      transition: box-shadow .15s ease;
-    }
-
-    .roi::before,
-    .roi::after {
-      content: "";
-      position: absolute;
-      width: 25px;
-      height: 25px;
-      border-color: #2f80ed;
-      border-style: solid;
-    }
-
-    .roi::before {
-      left: -3px;
-      top: -3px;
-      border-width: 4px 0 0 4px;
-      border-radius: 6px 0 0 0;
-    }
-
-    .roi::after {
-      right: -3px;
-      bottom: -3px;
-      border-width: 0 4px 4px 0;
-      border-radius: 0 0 6px 0;
+      box-shadow:
+        0 0 0 9999px rgba(0,0,0,.42),
+        0 0 18px rgba(32,201,151,.45);
     }
 
     .roi-label {
       position: absolute;
       left: 50%;
-      top: -31px;
+      bottom: calc(100% + 7px);
       transform: translateX(-50%);
-      background: rgba(11,18,32,.88);
-      color: #fff;
-      padding: 5px 9px;
-      border-radius: 7px;
-      font-size: 11px;
-      font-weight: 800;
       white-space: nowrap;
-      letter-spacing: .05em;
+      background: rgba(0,0,0,.72);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: .5px;
     }
 
-    .roi.editing {
-      pointer-events: auto;
-      border-color: #2f80ed;
-      box-shadow: 0 0 0 9999px rgba(0,0,0,.62), 0 0 0 2px rgba(47,128,237,.2);
-      cursor: move;
-    }
-
-    .handle {
+    .scan-line {
       position: absolute;
-      width: 26px;
-      height: 26px;
-      background: #2f80ed;
-      border: 3px solid #fff;
-      border-radius: 50%;
-      z-index: 2;
-      touch-action: none;
-      display: none;
+      left: 4%;
+      right: 4%;
+      top: 50%;
+      height: 2px;
+      background: rgba(32,201,151,.9);
+      box-shadow: 0 0 8px rgba(32,201,151,.9);
     }
-
-    .roi.editing .handle { display: block; }
-
-    .handle.tl { left: -13px; top: -13px; cursor: nwse-resize; }
-    .handle.tr { right: -13px; top: -13px; cursor: nesw-resize; }
-    .handle.bl { left: -13px; bottom: -13px; cursor: nesw-resize; }
-    .handle.br { right: -13px; bottom: -13px; cursor: nwse-resize; }
 
     .status {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      min-height: 42px;
       margin-top: 12px;
-      padding: 10px 12px;
+      min-height: 42px;
+      padding: 11px 13px;
       border-radius: 10px;
-      background: var(--panel-2);
+      background: var(--panel2);
       color: var(--muted);
       font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
     }
 
-    .status-dot {
-      width: 9px;
-      height: 9px;
-      flex: 0 0 9px;
-      border-radius: 50%;
-      background: var(--muted);
+    .status.running { color: #8ed8ff; }
+    .status.success { color: #75e6bd; }
+    .status.warning { color: #ffe08a; }
+    .status.error { color: #ff9a9a; }
+
+    .progress {
+      height: 3px;
+      margin-top: 8px;
+      overflow: hidden;
+      border-radius: 99px;
+      background: transparent;
+      opacity: 0;
     }
 
-    .status.running .status-dot { background: var(--primary); box-shadow: 0 0 0 5px rgba(47,128,237,.13); }
-    .status.success .status-dot { background: var(--success); }
-    .status.warning .status-dot { background: var(--warning); }
-    .status.error .status-dot { background: var(--danger); }
+    .progress.active {
+      opacity: 1;
+      background: var(--panel2);
+    }
+
+    .progress.active::after {
+      content: "";
+      display: block;
+      width: 35%;
+      height: 100%;
+      background: var(--primary);
+      animation: progress 1s infinite ease-in-out;
+    }
+
+    @keyframes progress {
+      from { transform: translateX(-120%); }
+      to { transform: translateX(310%); }
+    }
 
     .controls {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0,1fr));
-      gap: 10px;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
       margin-top: 12px;
     }
 
-    .controls button {
+    button {
       min-height: 48px;
-      padding: 12px 15px;
-      border-radius: 10px;
-      color: #fff;
-      background: var(--panel-2);
       border: 1px solid var(--border);
-      font-weight: 750;
+      border-radius: 10px;
+      background: var(--panel2);
+      color: var(--text);
+      font-weight: 700;
+      cursor: pointer;
+      padding: 10px 12px;
     }
 
-    .controls button:hover:not(:disabled) { filter: brightness(1.1); }
-    .controls button:disabled { opacity: .45; cursor: not-allowed; }
+    button:active { transform: scale(.98); }
 
-    .controls .primary {
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    button.primary {
       background: var(--primary);
       border-color: var(--primary);
-      grid-column: span 2;
     }
 
-    .controls .danger {
-      background: rgba(224,82,82,.12);
-      color: #ff9c9c;
-      border-color: rgba(224,82,82,.3);
+    button.danger {
+      background: rgba(235,87,87,.14);
+      border-color: rgba(235,87,87,.45);
+      color: #ffb0b0;
     }
 
     .result-title {
+      margin: 20px 0 8px;
       font-size: 13px;
-      font-weight: 850;
-      letter-spacing: .07em;
+      font-weight: bold;
       color: var(--muted);
-      margin-bottom: 8px;
+      letter-spacing: .7px;
     }
 
-    #result {
+    textarea {
       width: 100%;
-      min-height: 160px;
+      min-height: 110px;
       resize: vertical;
       border: 1px solid var(--border);
-      border-radius: 11px;
-      padding: 15px;
-      background: #0a111d;
-      color: #fff;
-      font: 600 16px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      border-radius: 12px;
+      background: #09111f;
+      color: var(--text);
+      padding: 14px;
+      font: 700 20px/1.35 monospace;
       outline: none;
     }
 
-    #result:focus { border-color: var(--primary); }
-
-    .method {
-      margin-top: 10px;
-      color: var(--muted);
-      font-size: 14px;
+    textarea:focus {
+      border-color: var(--primary);
     }
 
-    .method strong { color: #fff; }
+    .method {
+      margin-top: 9px;
+      color: var(--muted);
+      font-size: 13px;
+    }
 
     .result-actions {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .result-actions button {
-      min-height: 45px;
-      border-radius: 10px;
-      background: var(--panel-2);
-      border: 1px solid var(--border);
-      color: #fff;
-      font-weight: 750;
+      gap: 9px;
+      margin-top: 9px;
     }
 
     .hint {
+      margin: 12px 2px 0;
       color: var(--muted);
       font-size: 12px;
-      line-height: 1.5;
-      margin: 12px 2px 0;
+      line-height: 1.45;
+      text-align: center;
     }
 
-    .progress {
-      display: none;
-      height: 5px;
-      overflow: hidden;
-      border-radius: 999px;
-      background: #25334a;
-      margin-top: 10px;
-    }
-
-    .progress.active { display: block; }
-
-    .progress span {
-      display: block;
-      width: 30%;
-      height: 100%;
-      border-radius: inherit;
-      background: var(--primary);
-      animation: progress 1.1s infinite ease-in-out;
-    }
-
-    @keyframes progress {
-      0% { transform: translateX(-120%); }
-      100% { transform: translateX(450%); }
-    }
-
-    @media (max-width: 620px) {
-      body { padding: 10px; }
-      .panel { padding: 11px; }
-      .camera-wrap {
-        aspect-ratio: 3 / 4;
-        min-height: 420px;
-      }
+    @media (max-width: 480px) {
+      main { padding: 12px 10px 24px; }
+      .card { padding: 10px; }
+      .camera-wrap { aspect-ratio: 4 / 3; }
       .controls { grid-template-columns: 1fr; }
-      .controls .primary { grid-column: auto; }
       .result-actions { grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
 
 <body>
-  <main class="app">
-    <header>
-      <h1>LEITOR INTELIGENTE</h1>
-      <p>Código de barras ou texto</p>
-    </header>
+<main>
+  <header>
+    <h1>LEITOR INTELIGENTE</h1>
+    <p class="subtitle">Leitor de código de barras</p>
+  </header>
 
-    <section class="panel">
-      <div class="camera-wrap" id="cameraWrap">
-        <video id="video" autoplay muted playsinline></video>
+  <section class="card">
+    <div class="camera-wrap" id="cameraWrap">
+      <video id="video" autoplay muted playsinline></video>
 
-        <div class="camera-placeholder" id="placeholder">
-          <div>
-            <strong>Câmera desligada</strong><br>
-            Toque em <b>INICIAR LEITURA</b> para começar.
-          </div>
-        </div>
-
-        <!--
-          IMPORTANTE:
-          A moldura abaixo não é apenas visual.
-          Na hora da leitura, o JavaScript transforma esta área visual
-          em coordenadas dos pixels REAIS do vídeo e faz o crop em canvas.
-        -->
-        <div class="roi" id="roi" aria-label="Área de leitura">
-          <span class="roi-label">ÁREA DE LEITURA</span>
-          <span class="handle tl" data-handle="tl"></span>
-          <span class="handle tr" data-handle="tr"></span>
-          <span class="handle bl" data-handle="bl"></span>
-          <span class="handle br" data-handle="br"></span>
+      <div class="placeholder" id="placeholder">
+        <div>
+          <strong>Câmera desligada</strong><br>
+          Toque em "INICIAR LEITURA" para começar.
         </div>
       </div>
 
-      <div class="status" id="status">
-        <span class="status-dot"></span>
-        <span id="statusText">Pronto para iniciar.</span>
+      <div class="roi" id="roi" aria-label="Área fixa de leitura">
+        <span class="roi-label">ÁREA DE LEITURA</span>
+        <span class="scan-line"></span>
       </div>
+    </div>
 
-      <div class="progress" id="progress"><span></span></div>
+    <div class="status" id="status">
+      <span id="statusText">Aguardando início.</span>
+    </div>
 
-      <div class="controls">
-        <button class="primary" id="startBtn">INICIAR LEITURA</button>
-        <button id="adjustBtn">AJUSTAR ÁREA DE LEITURA</button>
-        <button id="resetBtn">REDEFINIR ÁREA</button>
-        <button class="danger" id="stopBtn" disabled>PARAR LEITURA</button>
-      </div>
+    <div class="progress" id="progress"></div>
 
-      <p class="hint">
-        Dica: mantenha a etiqueta bem iluminada e relativamente próxima da câmera.
-        A área externa da moldura não participa do processamento.
-      </p>
-    </section>
+    <div class="controls">
+      <button class="primary" id="startBtn">INICIAR LEITURA</button>
+      <button class="danger" id="stopBtn" disabled>PARAR LEITURA</button>
+    </div>
 
-    <section class="panel">
-      <div class="result-title">RESULTADO</div>
-      <textarea id="result" placeholder="O código ou texto reconhecido aparecerá aqui..." readonly></textarea>
-      <div class="method">Método: <strong id="method">—</strong></div>
+    <p class="hint">
+      Posicione o código dentro da moldura. O sistema tenta usar a câmera
+      traseira principal e analisa somente os pixels dentro da área verde.
+    </p>
 
-      <div class="result-actions">
-        <button id="copyBtn">COPIAR</button>
-        <button id="clearBtn">LIMPAR</button>
-      </div>
-    </section>
-  </main>
+    <div class="result-title">RESULTADO</div>
 
-  <!-- Canvas invisível usado exclusivamente para o crop/processamento. -->
-  <canvas id="cropCanvas" hidden></canvas>
-  <canvas id="ocrCanvas" hidden></canvas>
+    <textarea id="result" readonly placeholder="O código lido aparecerá aqui..."></textarea>
 
-  <script>
-    "use strict";
+    <div class="method">
+      <strong>Método:</strong> <span id="method">—</span>
+    </div>
 
-    /*
-      ================================================================
-      CONFIGURAÇÕES PRINCIPAIS
-      ================================================================
+    <div class="result-actions">
+      <button id="copyBtn">COPIAR</button>
+      <button id="clearBtn">LIMPAR</button>
+    </div>
+  </section>
+</main>
 
-      DEFAULT_ROI:
-      x, y, width e height são percentuais da área de visualização.
-      Ex.: x=25 significa começar em 25% da largura do vídeo.
+<!--
+  Canvas invisível.
+  Ele recebe SOMENTE o recorte matemático da área verde antes de ser
+  enviado ao ZXing. Portanto, textos/códigos fora da moldura não são
+  analisados.
+-->
+<canvas id="cropCanvas" hidden></canvas>
 
-      Para aumentar a área padrão:
-        width/height maiores.
+<script>
+"use strict";
 
-      Para mudar a posição padrão:
-        x/y.
+/*
+  ================================================================
+  CONFIGURAÇÕES
+  ================================================================
 
-      O estado é salvo somente durante a sessão na memória JavaScript.
-      Não usamos localStorage para não persistir imagens ou dados.
-    */
-    const DEFAULT_ROI = {
-      x: 25,
-      y: 35,
-      width: 50,
-      height: 30
-    };
+  Se quiser alterar futuramente o tamanho da área fixa, modifique:
+    ROI.x      = distância da esquerda (%)
+    ROI.y      = distância do topo (%)
+    ROI.width  = largura (%)
+    ROI.height = altura (%)
 
-    const MIN_ROI_WIDTH = 12;
-    const MIN_ROI_HEIGHT = 10;
+  A versão atual usa uma área horizontal de 72% x 18%.
+*/
+const ROI = {
+  x: 14,
+  y: 41,
+  width: 72,
+  height: 18
+};
 
-    // Após este período sem código de barras, o sistema muda para OCR.
-    const BARCODE_TIMEOUT_MS = 6500;
+const SCAN_INTERVAL_MS = 160;
 
-    // Intervalo entre tentativas de leitura do crop.
-    const SCAN_INTERVAL_MS = 180;
+const video = document.getElementById("video");
+const cameraWrap = document.getElementById("cameraWrap");
+const placeholder = document.getElementById("placeholder");
+const roi = document.getElementById("roi");
+const cropCanvas = document.getElementById("cropCanvas");
 
-    /*
-      Tesseract:
-      "eng" funciona bem para números, serials, MACs e etiquetas técnicas.
-      Para textos em português, pode ser alterado para "por".
-      Para misturar os dois, pode-se usar "eng+por", caso os dados de idioma
-      estejam disponíveis no CDN.
-    */
-    const OCR_LANGUAGE = "eng";
+const statusBox = document.getElementById("status");
+const statusText = document.getElementById("statusText");
+const progress = document.getElementById("progress");
 
-    const video = document.getElementById("video");
-    const cameraWrap = document.getElementById("cameraWrap");
-    const placeholder = document.getElementById("placeholder");
-    const roi = document.getElementById("roi");
-    const cropCanvas = document.getElementById("cropCanvas");
-    const ocrCanvas = document.getElementById("ocrCanvas");
+const resultField = document.getElementById("result");
+const methodField = document.getElementById("method");
 
-    const statusBox = document.getElementById("status");
-    const statusText = document.getElementById("statusText");
-    const progress = document.getElementById("progress");
+const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
+const copyBtn = document.getElementById("copyBtn");
+const clearBtn = document.getElementById("clearBtn");
 
-    const resultField = document.getElementById("result");
-    const methodField = document.getElementById("method");
+let stream = null;
+let running = false;
+let scanTimer = null;
+let barcodeReader = null;
+let selectedCameraId = null;
 
-    const startBtn = document.getElementById("startBtn");
-    const stopBtn = document.getElementById("stopBtn");
-    const adjustBtn = document.getElementById("adjustBtn");
-    const resetBtn = document.getElementById("resetBtn");
-    const copyBtn = document.getElementById("copyBtn");
-    const clearBtn = document.getElementById("clearBtn");
+/* Aplica a posição fixa da ROI. */
+function applyROI() {
+  roi.style.left = ROI.x + "%";
+  roi.style.top = ROI.y + "%";
+  roi.style.width = ROI.width + "%";
+  roi.style.height = ROI.height + "%";
+}
 
-    let roiState = { ...DEFAULT_ROI };
+/*
+  ================================================================
+  CÂMERA PRINCIPAL
+  ================================================================
 
-    let stream = null;
-    let running = false;
-    let scanStartedAt = 0;
-    let scanTimer = null;
-    let ocrWorker = null;
-    let ocrWorkerPromise = null;
-    let barcodeReader = null;
+  "facingMode: environment" sozinho NÃO garante a lente principal.
+  Muitos celulares possuem:
+    - câmera principal 1x;
+    - grande-angular 0.5x;
+    - teleobjetiva;
+    - outras câmeras.
 
-    let editMode = false;
-    let pointerAction = null;
+  Depois de obter uma permissão inicial, enumeramos as câmeras e damos
+  prioridade a nomes que normalmente representam a câmera traseira
+  principal. Também descartamos nomes que indiquem ultrawide/wide/0.5x.
 
-    /*
-      ================================================================
-      ROI / MOLDURA
-      ================================================================
-    */
+  O navegador não fornece uma API universal dizendo "esta é a lente 1x".
+  Por isso usamos uma seleção heurística. Em Android/Chrome, nomes como
+  "camera2 0, facing back" normalmente correspondem à câmera principal.
 
-    function clamp(value, min, max) {
-      return Math.min(max, Math.max(min, value));
-    }
+  Se o aparelho não fornecer nomes úteis, mantemos a câmera traseira
+  escolhida pelo navegador em vez de arriscar uma câmera inexistente.
+*/
 
-    function applyROI() {
-      roi.style.left = roiState.x + "%";
-      roi.style.top = roiState.y + "%";
-      roi.style.width = roiState.width + "%";
-      roi.style.height = roiState.height + "%";
-    }
+function cameraScore(device) {
+  const label = (device.label || "").toLowerCase();
 
-    function resetROI() {
-      roiState = { ...DEFAULT_ROI };
-      applyROI();
-    }
+  let score = 0;
 
-    function setEditMode(enabled) {
-      editMode = enabled;
-      roi.classList.toggle("editing", enabled);
-      adjustBtn.textContent = enabled
-        ? "FINALIZAR AJUSTE"
-        : "AJUSTAR ÁREA DE LEITURA";
-    }
+  // Penaliza lentes que normalmente são grande-angular/ultrawide.
+  if (/ultra.?wide|ultrawide|wide angle|wide-angle|0\.5x|0,5x/.test(label)) {
+    score -= 100;
+  }
 
-    /*
-      A moldura usa Pointer Events, portanto funciona com:
-      - mouse;
-      - toque;
-      - caneta/stylus.
+  if (/front|frontal|user facing/.test(label)) {
+    score -= 200;
+  }
 
-      Arrastar o centro MOVE a área.
-      Arrastar um dos quatro círculos REDIMENSIONA a área.
-    */
-    roi.addEventListener("pointerdown", (event) => {
-      if (!editMode) return;
+  // Prioriza câmera traseira.
+  if (/back|rear|environment|traseira/.test(label)) {
+    score += 80;
+  }
 
-      event.preventDefault();
-      roi.setPointerCapture?.(event.pointerId);
+  // No Android Camera2, "camera2 0, facing back" é frequentemente a principal.
+  if (/camera2\s*0/.test(label)) {
+    score += 60;
+  }
 
-      const rect = cameraWrap.getBoundingClientRect();
-      const x = ((event.clientX - rect.left) / rect.width) * 100;
-      const y = ((event.clientY - rect.top) / rect.height) * 100;
+  // Índices baixos são normalmente as câmeras principais em muitos aparelhos.
+  if (/\bcamera\s*0\b/.test(label)) {
+    score += 35;
+  }
 
-      const handle = event.target.closest(".handle");
+  // Tele geralmente não é desejada para leitura próxima.
+  if (/tele|zoom/.test(label)) {
+    score -= 25;
+  }
 
-      pointerAction = {
-        pointerId: event.pointerId,
-        type: handle ? "resize" : "move",
-        handle: handle?.dataset.handle || null,
-        startPointerX: x,
-        startPointerY: y,
-        startROI: { ...roiState }
-      };
+  return score;
+}
+
+async function chooseMainBackCamera() {
+  /*
+    A enumeração de devices normalmente só revela os labels depois que
+    o usuário concede acesso à câmera. Por isso esta função é chamada
+    após uma primeira abertura da câmera.
+  */
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cameras = devices.filter(d => d.kind === "videoinput");
+
+  if (!cameras.length) return null;
+
+  const ranked = [...cameras].sort((a, b) => cameraScore(b) - cameraScore(a));
+
+  // Se não houver labels, não temos como distinguir as lentes.
+  const hasUsefulLabels = cameras.some(c => c.label && c.label.trim());
+
+  if (!hasUsefulLabels) return null;
+
+  return ranked[0];
+}
+
+async function startCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error(
+      "Este navegador não oferece acesso à câmera. Use uma versão recente do Chrome ou Safari."
+    );
+  }
+
+  if (!window.isSecureContext && location.hostname !== "localhost") {
+    throw new Error(
+      "A câmera precisa de HTTPS. Abra o site por HTTPS, por exemplo pelo GitHub Pages."
+    );
+  }
+
+  /*
+    PRIMEIRA ETAPA:
+    solicitamos a câmera traseira. Isso também libera os nomes dos
+    dispositivos para enumerateDevices() em navegadores modernos.
+  */
+  let initialStream;
+
+  try {
+    initialStream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        frameRate: { ideal: 30, max: 30 }
+      }
     });
+  } catch (error) {
+    throw normalizeCameraError(error);
+  }
 
-    roi.addEventListener("pointermove", (event) => {
-      if (!pointerAction || pointerAction.pointerId !== event.pointerId) return;
+  /*
+    Agora que há permissão, tentamos identificar especificamente a
+    câmera traseira principal.
+  */
+  let mainCamera = null;
 
-      event.preventDefault();
+  try {
+    mainCamera = await chooseMainBackCamera();
+  } catch (error) {
+    console.warn("Não foi possível enumerar as câmeras:", error);
+  }
 
-      const rect = cameraWrap.getBoundingClientRect();
-      const currentX = ((event.clientX - rect.left) / rect.width) * 100;
-      const currentY = ((event.clientY - rect.top) / rect.height) * 100;
+  /*
+    Se encontramos uma câmera específica e ela é diferente da inicial,
+    trocamos para ela.
+  */
+  const initialTrack = initialStream.getVideoTracks()[0];
+  const initialDeviceId = initialTrack?.getSettings?.().deviceId;
 
-      const dx = currentX - pointerAction.startPointerX;
-      const dy = currentY - pointerAction.startPointerY;
-      const start = pointerAction.startROI;
+  if (mainCamera?.deviceId && mainCamera.deviceId !== initialDeviceId) {
+    try {
+      initialStream.getTracks().forEach(track => track.stop());
 
-      if (pointerAction.type === "move") {
-        roiState.x = clamp(start.x + dx, 0, 100 - start.width);
-        roiState.y = clamp(start.y + dy, 0, 100 - start.height);
-      } else {
-        resizeROI(pointerAction.handle, start, dx, dy);
-      }
-
-      applyROI();
-    });
-
-    roi.addEventListener("pointerup", (event) => {
-      if (pointerAction?.pointerId === event.pointerId) {
-        pointerAction = null;
-      }
-    });
-
-    roi.addEventListener("pointercancel", () => {
-      pointerAction = null;
-    });
-
-    function resizeROI(handle, start, dx, dy) {
-      let x = start.x;
-      let y = start.y;
-      let width = start.width;
-      let height = start.height;
-
-      if (handle.includes("l")) {
-        const maxX = start.x + start.width - MIN_ROI_WIDTH;
-        x = clamp(start.x + dx, 0, maxX);
-        width = start.width - (x - start.x);
-      }
-
-      if (handle.includes("r")) {
-        width = clamp(start.width + dx, MIN_ROI_WIDTH, 100 - start.x);
-      }
-
-      if (handle.includes("t")) {
-        const maxY = start.y + start.height - MIN_ROI_HEIGHT;
-        y = clamp(start.y + dy, 0, maxY);
-        height = start.height - (y - start.y);
-      }
-
-      if (handle.includes("b")) {
-        height = clamp(start.height + dy, MIN_ROI_HEIGHT, 100 - start.y);
-      }
-
-      roiState = {
-        x,
-        y,
-        width,
-        height
-      };
-    }
-
-    /*
-      ================================================================
-      STATUS / RESULTADO
-      ================================================================
-    */
-
-    function setStatus(text, type = "") {
-      statusText.textContent = text;
-      statusBox.className = "status" + (type ? " " + type : "");
-    }
-
-    function setProgress(active) {
-      progress.classList.toggle("active", active);
-    }
-
-    function showResult(text, method) {
-      resultField.value = text || "";
-      methodField.textContent = method || "—";
-    }
-
-    /*
-      ================================================================
-      CÂMERA
-      ================================================================
-    */
-
-    async function startCamera() {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error(
-          "Este navegador não oferece acesso à câmera. Use uma versão recente do Chrome, Safari ou outro navegador compatível."
-        );
-      }
-
-      /*
-        "environment" pede preferencialmente a câmera traseira.
-        Em computadores, o navegador pode ignorar isso e usar a webcam.
-      */
-      const constraints = {
+      stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
-          facingMode: { ideal: "environment" },
+          deviceId: { exact: mainCamera.deviceId },
           width: { ideal: 1920 },
           height: { ideal: 1080 },
           frameRate: { ideal: 30, max: 30 }
         }
-      };
+      });
+
+      selectedCameraId = mainCamera.deviceId;
+    } catch (error) {
+      /*
+        Se a câmera específica não puder ser aberta, voltamos à câmera
+        traseira que o navegador conseguiu abrir inicialmente.
+      */
+      console.warn("Não foi possível selecionar a câmera principal:", error);
 
       try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (firstError) {
-        /*
-          Alguns equipamentos/navegadores rejeitam constraints avançadas.
-          Fazemos uma segunda tentativa mais simples.
-        */
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: true
-          });
-        } catch (secondError) {
-          throw normalizeCameraError(secondError || firstError);
-        }
-      }
-
-      video.srcObject = stream;
-      await video.play();
-
-      placeholder.style.display = "none";
-
-      /*
-        O metadata garante que videoWidth/videoHeight já estejam disponíveis.
-      */
-      if (video.readyState < 2) {
-        await new Promise((resolve) => {
-          video.addEventListener("loadedmetadata", resolve, { once: true });
-        });
-      }
-    }
-
-    function normalizeCameraError(error) {
-      if (!error) return new Error("Não foi possível acessar a câmera.");
-
-      if (error.name === "NotAllowedError" || error.name === "SecurityError") {
-        return new Error(
-          "Permissão da câmera negada. Autorize a câmera nas configurações do navegador e tente novamente."
-        );
-      }
-
-      if (error.name === "NotFoundError") {
-        return new Error("Nenhuma câmera foi encontrada neste dispositivo.");
-      }
-
-      if (error.name === "NotReadableError") {
-        return new Error(
-          "A câmera está sendo usada por outro aplicativo ou não pôde ser iniciada."
-        );
-      }
-
-      if (error.name === "OverconstrainedError") {
-        return new Error("A câmera não atende às configurações solicitadas.");
-      }
-
-      return new Error("Não foi possível iniciar a câmera: " + (error.message || error.name || "erro desconhecido"));
-    }
-
-    function stopCamera() {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-
-      stream = null;
-      video.srcObject = null;
-      placeholder.style.display = "grid";
-    }
-
-    /*
-      ================================================================
-      CROP MATEMÁTICO — PARTE MAIS IMPORTANTE
-      ================================================================
-
-      A câmera pode ter, por exemplo, 1920x1080 pixels, enquanto o <video>
-      aparece na tela em 390x650.
-
-      Como usamos object-fit: cover, uma parte da imagem real pode ficar
-      fora do viewport visual. Portanto NÃO podemos simplesmente fazer:
-
-        ROI% * video.videoWidth
-
-      Primeiro calculamos como a imagem real foi escalada e posicionada
-      dentro do elemento <video>. Depois transformamos as coordenadas
-      da moldura visual para pixels reais da câmera.
-
-      Resultado: somente os pixels correspondentes à moldura são copiados
-      para cropCanvas. O detector e o OCR recebem esse canvas, e não o vídeo
-      inteiro.
-    */
-    function getVideoCropRect() {
-      const containerRect = cameraWrap.getBoundingClientRect();
-
-      const sourceW = video.videoWidth;
-      const sourceH = video.videoHeight;
-
-      if (!sourceW || !sourceH) {
-        throw new Error("A resolução da câmera ainda não está disponível.");
-      }
-
-      const displayW = containerRect.width;
-      const displayH = containerRect.height;
-
-      /*
-        object-fit: cover:
-        a imagem é escalada até cobrir todo o container.
-      */
-      const scale = Math.max(displayW / sourceW, displayH / sourceH);
-
-      const renderedW = sourceW * scale;
-      const renderedH = sourceH * scale;
-
-      /*
-        Espaço "cortado" pelo object-fit: cover.
-      */
-      const offsetX = (displayW - renderedW) / 2;
-      const offsetY = (displayH - renderedH) / 2;
-
-      /*
-        ROI visual em pixels do container.
-      */
-      const roiDisplayX = displayW * (roiState.x / 100);
-      const roiDisplayY = displayH * (roiState.y / 100);
-      const roiDisplayW = displayW * (roiState.width / 100);
-      const roiDisplayH = displayH * (roiState.height / 100);
-
-      /*
-        Converte display -> pixels reais da câmera.
-      */
-      let sourceX = (roiDisplayX - offsetX) / scale;
-      let sourceY = (roiDisplayY - offsetY) / scale;
-      let sourceWROI = roiDisplayW / scale;
-      let sourceHROI = roiDisplayH / scale;
-
-      /*
-        Clamping para garantir que nunca tentemos desenhar fora do vídeo.
-      */
-      const x1 = clamp(sourceX, 0, sourceW);
-      const y1 = clamp(sourceY, 0, sourceH);
-      const x2 = clamp(sourceX + sourceWROI, 0, sourceW);
-      const y2 = clamp(sourceY + sourceHROI, 0, sourceH);
-
-      sourceX = Math.floor(x1);
-      sourceY = Math.floor(y1);
-      sourceWROI = Math.max(1, Math.floor(x2 - x1));
-      sourceHROI = Math.max(1, Math.floor(y2 - y1));
-
-      return {
-        sx: sourceX,
-        sy: sourceY,
-        sw: sourceWROI,
-        sh: sourceHROI
-      };
-    }
-
-    /*
-      Cria o crop real.
-      Para barcode, usamos praticamente a resolução original do crop.
-      Isso evita perder detalhes de barras finas.
-    */
-    function captureCrop() {
-      const rect = getVideoCropRect();
-
-      cropCanvas.width = rect.sw;
-      cropCanvas.height = rect.sh;
-
-      const ctx = cropCanvas.getContext("2d", {
-        alpha: false,
-        willReadFrequently: true
-      });
-
-      /*
-        Não aplicamos filtro antes do barcode.
-        O objetivo é preservar exatamente as barras e o contraste original.
-      */
-      ctx.drawImage(
-        video,
-        rect.sx,
-        rect.sy,
-        rect.sw,
-        rect.sh,
-        0,
-        0,
-        rect.sw,
-        rect.sh
-      );
-
-      return cropCanvas;
-    }
-
-    /*
-      ================================================================
-      BARCODE
-      ================================================================
-
-      ZXing BrowserMultiFormatReader é usado para formatos 1D e 2D.
-      A leitura é feita com decodeFromCanvas(cropCanvas), portanto o
-      detector recebe SOMENTE o ROI matematicamente recortado.
-
-      Entre os formatos suportados pelo ZXing estão QR Code, EAN-13,
-      EAN-8, UPC, Code 128, Code 39, ITF e vários outros.
-    */
-    function ensureBarcodeReader() {
-      if (!window.ZXingBrowser?.BrowserMultiFormatReader) {
-        throw new Error(
-          "A biblioteca de código de barras não carregou. Verifique sua conexão com a internet."
-        );
-      }
-
-      if (!barcodeReader) {
-        barcodeReader = new ZXingBrowser.BrowserMultiFormatReader();
-      }
-
-      return barcodeReader;
-    }
-
-    function tryBarcode(canvas) {
-      const reader = ensureBarcodeReader();
-
-      try {
-        /*
-          O método é síncrono para um canvas já capturado.
-          Se não encontrar nada, lança uma exceção de "não encontrado".
-        */
-        const decoded = reader.decodeFromCanvas(canvas);
-        const text = decoded?.getText?.() || "";
-
-        if (!text.trim()) return null;
-
-        return text.trim();
-      } catch (error) {
-        /*
-          "Não encontrado" é esperado durante a busca.
-          Outros erros são tratados como falha de uma tentativa,
-          sem interromper toda a leitura.
-        */
-        return null;
-      }
-    }
-
-    /*
-      ================================================================
-      OCR
-      ================================================================
-    */
-
-    function prepareOCRCanvas(sourceCanvas) {
-      /*
-        O OCR recebe uma cópia separada.
-        Primeiro aumentamos a imagem. Depois fazemos grayscale,
-        contraste e uma nitidez leve.
-
-        Importante: essas alterações NÃO são usadas no barcode.
-      */
-      const scale = Math.min(
-        3.0,
-        Math.max(1.5, 1800 / Math.max(sourceCanvas.width, sourceCanvas.height))
-      );
-
-      const w = Math.max(1, Math.round(sourceCanvas.width * scale));
-      const h = Math.max(1, Math.round(sourceCanvas.height * scale));
-
-      ocrCanvas.width = w;
-      ocrCanvas.height = h;
-
-      const ctx = ocrCanvas.getContext("2d", {
-        willReadFrequently: true
-      });
-
-      ctx.drawImage(sourceCanvas, 0, 0, w, h);
-
-      const image = ctx.getImageData(0, 0, w, h);
-      const data = image.data;
-
-      /*
-        1) escala de cinza
-        2) contraste automático moderado
-        3) leve aumento de luminosidade
-      */
-      for (let i = 0; i < data.length; i += 4) {
-        const gray =
-          0.299 * data[i] +
-          0.587 * data[i + 1] +
-          0.114 * data[i + 2];
-
-        /*
-          Contraste ~1.35.
-        */
-        const contrasted = clamp((gray - 128) * 1.35 + 128, 0, 255);
-
-        data[i] = contrasted;
-        data[i + 1] = contrasted;
-        data[i + 2] = contrasted;
-      }
-
-      ctx.putImageData(image, 0, 0);
-
-      /*
-        Nitidez simples usando um filtro CSS antes de uma segunda cópia.
-        Em navegadores modernos isso melhora bastante textos pequenos.
-      */
-      const sharpenCanvas = document.createElement("canvas");
-      sharpenCanvas.width = w;
-      sharpenCanvas.height = h;
-
-      const sharpenCtx = sharpenCanvas.getContext("2d", {
-        willReadFrequently: true
-      });
-
-      sharpenCtx.filter = "contrast(1.08) brightness(1.03)";
-      sharpenCtx.drawImage(ocrCanvas, 0, 0);
-
-      ocrCanvas.getContext("2d").clearRect(0, 0, w, h);
-      ocrCanvas.getContext("2d").drawImage(sharpenCanvas, 0, 0);
-
-      /*
-        Não fazemos binarização agressiva aqui.
-        Ela pode destruir caracteres finos e códigos mistos.
-        O Tesseract normalmente consegue decidir a binarização internamente.
-      */
-
-      return ocrCanvas;
-    }
-
-    async function getOCRWorker() {
-      if (!window.Tesseract?.createWorker) {
-        throw new Error(
-          "A biblioteca OCR não carregou. Verifique sua conexão com a internet."
-        );
-      }
-
-      if (!ocrWorkerPromise) {
-        /*
-          O worker é criado uma vez e reutilizado.
-          Isso evita baixar/inicializar o modelo em toda leitura.
-        */
-        ocrWorkerPromise = Tesseract.createWorker(OCR_LANGUAGE, 1, {
-          logger: (message) => {
-            if (message?.status) {
-              const pct = typeof message.progress === "number"
-                ? ` ${Math.round(message.progress * 100)}%`
-                : "";
-
-              if (message.status.includes("recognizing")) {
-                setStatus("Reconhecendo texto..." + pct, "running");
-              }
-            }
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
           }
-        }).then(worker => {
-          ocrWorker = worker;
-          return worker;
-        }).catch(error => {
-          ocrWorkerPromise = null;
-          throw error;
         });
-      }
-
-      return ocrWorkerPromise;
-    }
-
-    async function runOCR(sourceCanvas) {
-      const prepared = prepareOCRCanvas(sourceCanvas);
-      const worker = await getOCRWorker();
-
-      setStatus("Reconhecendo texto...", "running");
-
-      const result = await worker.recognize(prepared);
-      const text = (result?.data?.text || "").trim();
-
-      return cleanOCRText(text);
-    }
-
-    function cleanOCRText(text) {
-      /*
-        Remove espaços excessivos e linhas vazias, mas preserva
-        a estrutura da etiqueta.
-      */
-      return text
-        .replace(/\r/g, "")
-        .split("\n")
-        .map(line => line.replace(/[ \t]+/g, " ").trim())
-        .filter(Boolean)
-        .join("\n")
-        .trim();
-    }
-
-    /*
-      ================================================================
-      FLUXO AUTOMÁTICO
-      ================================================================
-    */
-
-    async function startReading() {
-      if (running) return;
-
-      showResult("", "—");
-      setProgress(false);
-      setStatus("Solicitando acesso à câmera...", "running");
-
-      try {
-        await startCamera();
-      } catch (error) {
-        setStatus(error.message || "Erro ao iniciar câmera.", "error");
-        return;
-      }
-
-      running = true;
-      scanStartedAt = performance.now();
-
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
-
-      setStatus("Procurando código de barras...", "running");
-
-      /*
-        Um loop próprio é usado porque precisamos capturar o crop antes
-        de entregar a imagem ao detector. O scanner da biblioteca não recebe
-        o vídeo inteiro.
-      */
-      scanLoop();
-    }
-
-    async function scanLoop() {
-      if (!running) return;
-
-      try {
-        const crop = captureCrop();
-
-        const barcode = tryBarcode(crop);
-
-        if (barcode) {
-          finishReading(barcode, "Código de barras");
-          return;
-        }
-
-        /*
-          Após alguns segundos sem barcode, muda para OCR.
-        */
-        if (performance.now() - scanStartedAt >= BARCODE_TIMEOUT_MS) {
-          await switchToOCR(crop);
-          return;
-        }
-      } catch (error) {
-        console.warn("Falha em uma tentativa de leitura:", error);
-      }
-
-      scanTimer = setTimeout(scanLoop, SCAN_INTERVAL_MS);
-    }
-
-    async function switchToOCR(lastCrop) {
-      if (!running) return;
-
-      setProgress(true);
-      setStatus("Nenhum código encontrado. Iniciando OCR...", "warning");
-
-      /*
-        Paramos o loop de barcode antes de começar OCR.
-      */
-      if (scanTimer) {
-        clearTimeout(scanTimer);
-        scanTimer = null;
-      }
-
-      try {
-        /*
-          Fazemos uma nova captura do ROI para o OCR, garantindo que o
-          frame analisado continue sendo exclusivamente o crop.
-        */
-        const crop = lastCrop || captureCrop();
-
-        const text = await runOCR(crop);
-
-        if (!running) return;
-
-        if (text) {
-          finishReading(text, "OCR");
-        } else {
-          finishNoResult();
-        }
-      } catch (error) {
-        console.error("Erro no OCR:", error);
-
-        if (running) {
-          setStatus(
-            "Não foi possível concluir o OCR. Tente melhorar a iluminação e aproximar a etiqueta.",
-            "error"
-          );
-          setProgress(false);
-          stopReading(false);
-        }
+      } catch (fallbackError) {
+        throw normalizeCameraError(fallbackError);
       }
     }
+  } else {
+    stream = initialStream;
+    selectedCameraId = initialDeviceId || null;
+  }
 
-    function finishReading(text, method) {
-      if (!running) return;
+  video.srcObject = stream;
+  await video.play();
 
-      /*
-        Para código de barras, o resultado é exatamente o conteúdo lido.
-        Não adicionamos "Código:" ou outros textos ao campo.
-      */
-      showResult(text, method);
-      setStatus("Leitura concluída.", "success");
-      setProgress(false);
+  placeholder.style.display = "none";
 
-      stopReading(false);
-    }
-
-    function finishNoResult() {
-      if (!running) return;
-
-      showResult("", "Nenhuma informação encontrada");
-      setStatus("⚠ Nenhuma informação encontrada.", "warning");
-      setProgress(false);
-
-      stopReading(false);
-    }
-
-    function stopReading(showMessage = true) {
-      running = false;
-
-      if (scanTimer) {
-        clearTimeout(scanTimer);
-        scanTimer = null;
-      }
-
-      stopCamera();
-
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-
-      if (showMessage) {
-        setStatus("Leitura interrompida.", "warning");
-        setProgress(false);
-      }
-    }
-
-    /*
-      ================================================================
-      BOTÕES
-      ================================================================
-    */
-
-    startBtn.addEventListener("click", startReading);
-
-    stopBtn.addEventListener("click", () => {
-      stopReading(true);
+  if (video.readyState < 2) {
+    await new Promise(resolve => {
+      video.addEventListener("loadedmetadata", resolve, { once: true });
     });
+  }
 
-    adjustBtn.addEventListener("click", () => {
-      setEditMode(!editMode);
-    });
+  /*
+    Mostra no console qual câmera foi realmente selecionada.
+    Isso ajuda a testar aparelhos diferentes.
+  */
+  const activeTrack = stream.getVideoTracks()[0];
+  console.log("Câmera selecionada:", activeTrack?.label);
+  console.log("Configuração:", activeTrack?.getSettings?.());
+}
 
-    resetBtn.addEventListener("click", () => {
-      resetROI();
-      setStatus(
-        editMode
-          ? "Área redefinida. Você pode ajustá-la agora."
-          : "Área de leitura redefinida.",
-        ""
-      );
-    });
+function normalizeCameraError(error) {
+  if (!error) {
+    return new Error("Não foi possível acessar a câmera.");
+  }
 
-    clearBtn.addEventListener("click", () => {
-      showResult("", "—");
-      setStatus("Resultado limpo.", "");
-    });
+  if (error.name === "NotAllowedError" || error.name === "SecurityError") {
+    return new Error(
+      "O navegador bloqueou o acesso à câmera. Verifique a permissão da câmera para este site."
+    );
+  }
 
-    copyBtn.addEventListener("click", async () => {
-      const text = resultField.value;
+  if (error.name === "NotFoundError") {
+    return new Error("Nenhuma câmera foi encontrada neste dispositivo.");
+  }
 
-      if (!text) {
-        setStatus("Não há resultado para copiar.", "warning");
-        return;
-      }
+  if (error.name === "NotReadableError") {
+    return new Error(
+      "A câmera está sendo usada por outro aplicativo ou não pôde ser iniciada."
+    );
+  }
 
-      try {
-        await navigator.clipboard.writeText(text);
-        setStatus("Resultado copiado para a área de transferência.", "success");
-      } catch {
-        /*
-          Fallback para alguns navegadores/ambientes sem Clipboard API.
-        */
-        resultField.removeAttribute("readonly");
-        resultField.select();
-        document.execCommand("copy");
-        resultField.setAttribute("readonly", "readonly");
-        window.getSelection()?.removeAllRanges();
+  if (error.name === "OverconstrainedError") {
+    return new Error(
+      "A câmera solicitada não está disponível neste aparelho."
+    );
+  }
 
-        setStatus("Resultado copiado.", "success");
-      }
-    });
+  return new Error(
+    "Não foi possível iniciar a câmera: " +
+    (error.message || error.name || "erro desconhecido")
+  );
+}
 
+function stopCamera() {
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+  }
+
+  stream = null;
+  selectedCameraId = null;
+  video.srcObject = null;
+  placeholder.style.display = "grid";
+}
+
+/*
+  ================================================================
+  CROP MATEMÁTICO
+  ================================================================
+
+  O vídeo pode ser, por exemplo, 1920x1080 enquanto o elemento visual
+  possui 390x220 ou outra proporção.
+
+  Além disso, usamos object-fit: cover. Isso significa que parte da
+  imagem real pode ficar fora do elemento visual.
+
+  Por isso NÃO fazemos simplesmente:
+      ROI% * video.videoWidth
+
+  Primeiro calculamos a escala real usada pelo object-fit: cover e o
+  deslocamento (crop) causado pela diferença de proporção.
+
+  Depois convertemos a moldura visual em coordenadas dos pixels reais
+  da câmera.
+
+  O canvas final contém EXCLUSIVAMENTE a área verde.
+*/
+function getVideoCropRect() {
+  const containerRect = cameraWrap.getBoundingClientRect();
+
+  const sourceW = video.videoWidth;
+  const sourceH = video.videoHeight;
+
+  if (!sourceW || !sourceH) {
+    throw new Error("A resolução da câmera ainda não está disponível.");
+  }
+
+  const roiLeft = containerRect.width * ROI.x / 100;
+  const roiTop = containerRect.height * ROI.y / 100;
+  const roiWidth = containerRect.width * ROI.width / 100;
+  const roiHeight = containerRect.height * ROI.height / 100;
+
+  /*
+    object-fit: cover:
+    a escala é determinada pelo maior fator necessário para preencher
+    toda a caixa visual.
+  */
+  const scale = Math.max(
+    containerRect.width / sourceW,
+    containerRect.height / sourceH
+  );
+
+  const renderedW = sourceW * scale;
+  const renderedH = sourceH * scale;
+
+  const offsetX = (renderedW - containerRect.width) / 2;
+  const offsetY = (renderedH - containerRect.height) / 2;
+
+  const sourceX = (roiLeft + offsetX) / scale;
+  const sourceY = (roiTop + offsetY) / scale;
+  const sourceWROI = roiWidth / scale;
+  const sourceHROI = roiHeight / scale;
+
+  return {
+    sx: Math.max(0, Math.floor(sourceX)),
+    sy: Math.max(0, Math.floor(sourceY)),
+    sw: Math.min(sourceW - Math.floor(sourceX), Math.floor(sourceWROI)),
+    sh: Math.min(sourceH - Math.floor(sourceY), Math.floor(sourceHROI))
+  };
+}
+
+/*
+  Faz a captura real da ROI.
+
+  Para código de barras, não aplicamos filtros, contraste ou grayscale
+  antes da leitura. Isso preserva os detalhes finos das barras.
+*/
+function captureCrop() {
+  const rect = getVideoCropRect();
+
+  if (rect.sw <= 0 || rect.sh <= 0) {
+    throw new Error("A área de leitura ficou fora da imagem da câmera.");
+  }
+
+  cropCanvas.width = rect.sw;
+  cropCanvas.height = rect.sh;
+
+  const ctx = cropCanvas.getContext("2d", {
+    alpha: false,
+    willReadFrequently: true
+  });
+
+  ctx.drawImage(
+    video,
+    rect.sx,
+    rect.sy,
+    rect.sw,
+    rect.sh,
+    0,
+    0,
+    rect.sw,
+    rect.sh
+  );
+
+  return cropCanvas;
+}
+
+/*
+  ================================================================
+  CÓDIGO DE BARRAS
+  ================================================================
+
+  O ZXing recebe o canvas já recortado.
+
+  Portanto ele NÃO recebe:
+    - o vídeo inteiro;
+    - os pixels fora da moldura;
+    - a imagem completa da câmera.
+
+  Formatos suportados pela biblioteca incluem, entre outros:
+    EAN-13, EAN-8, UPC, Code 128, Code 39, ITF e QR Code.
+*/
+function tryBarcode(canvas) {
+  if (!barcodeReader) {
+    barcodeReader = new ZXingBrowser.BrowserMultiFormatReader();
+  }
+
+  try {
+    const decoded = barcodeReader.decodeFromCanvas(canvas);
+    const text = decoded?.getText?.() || "";
+
+    return text.trim() || null;
+  } catch (error) {
+    // "Não encontrado" é normal durante a busca.
+    return null;
+  }
+}
+
+/*
+  ================================================================
+  LEITURA
+  ================================================================
+*/
+
+async function startReading() {
+  if (running) return;
+
+  showResult("", "—");
+  setProgress(true);
+  setStatus("Iniciando câmera...", "running");
+
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+
+  try {
+    await startCamera();
+
+    running = true;
+    setStatus("Procurando código de barras...", "running");
+
+    scanLoop();
+  } catch (error) {
+    running = false;
+    setProgress(false);
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+
+    setStatus(error.message || "Não foi possível iniciar a câmera.", "error");
+  }
+}
+
+function scanLoop() {
+  if (!running) return;
+
+  try {
     /*
-      Se a orientação/tamanho da tela mudar, as porcentagens do ROI
-      continuam válidas. Só precisamos reaplicar a posição visual.
+      Capture sempre antes de chamar o detector.
+      Isso garante que o ZXing veja somente a ROI.
     */
-    window.addEventListener("resize", applyROI);
+    const crop = captureCrop();
+    const barcode = tryBarcode(crop);
 
-    /*
-      Quando a página for fechada/trocada, interrompemos a câmera.
-      Nenhuma imagem é armazenada.
-    */
-    window.addEventListener("pagehide", () => {
-      running = false;
-
-      if (scanTimer) clearTimeout(scanTimer);
-
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    });
-
-    /*
-      ================================================================
-      INICIALIZAÇÃO
-      ================================================================
-    */
-
-    applyROI();
-
-    /*
-      Compatibilidade:
-      câmera exige contexto seguro na maioria dos navegadores:
-        - HTTPS
-        - localhost
-
-      GitHub Pages usa HTTPS, então é apropriado para este projeto.
-    */
-    if (!window.isSecureContext && location.hostname !== "localhost") {
-      setStatus(
-        "A câmera normalmente exige HTTPS. Hospede o arquivo em GitHub Pages ou outro domínio HTTPS.",
-        "warning"
-      );
+    if (barcode) {
+      finishReading(barcode);
+      return;
     }
-  </script>
+  } catch (error) {
+    console.warn("Falha na tentativa de leitura:", error);
+  }
+
+  scanTimer = setTimeout(scanLoop, SCAN_INTERVAL_MS);
+}
+
+function finishReading(code) {
+  if (!running) return;
+
+  /*
+    Para código de barras, retornamos SOMENTE o conteúdo lido.
+    Nenhum texto adicional é colocado no resultado.
+  */
+  showResult(code, "Código de barras");
+  setStatus("✓ Código de barras detectado. Leitura concluída.", "success");
+  setProgress(false);
+
+  stopReading(false);
+}
+
+function stopReading(showMessage = true) {
+  running = false;
+
+  if (scanTimer) {
+    clearTimeout(scanTimer);
+    scanTimer = null;
+  }
+
+  stopCamera();
+
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+
+  if (showMessage) {
+    setStatus("Leitura interrompida.", "warning");
+    setProgress(false);
+  }
+}
+
+/*
+  ================================================================
+  INTERFACE
+  ================================================================
+*/
+
+function setStatus(text, type = "") {
+  statusText.textContent = text;
+  statusBox.className = "status" + (type ? " " + type : "");
+}
+
+function setProgress(active) {
+  progress.classList.toggle("active", active);
+}
+
+function showResult(text, method) {
+  resultField.value = text || "";
+  methodField.textContent = method || "—";
+}
+
+startBtn.addEventListener("click", startReading);
+
+stopBtn.addEventListener("click", () => {
+  stopReading(true);
+});
+
+clearBtn.addEventListener("click", () => {
+  showResult("", "—");
+  setStatus("Resultado limpo.", "");
+});
+
+copyBtn.addEventListener("click", async () => {
+  const text = resultField.value.trim();
+
+  if (!text) {
+    setStatus("Não há código para copiar.", "warning");
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    setStatus("Código copiado.", "success");
+  } catch {
+    /*
+      Fallback para navegadores/ambientes que não liberam Clipboard API.
+    */
+    resultField.removeAttribute("readonly");
+    resultField.select();
+    document.execCommand("copy");
+    resultField.setAttribute("readonly", "readonly");
+    window.getSelection()?.removeAllRanges();
+
+    setStatus("Código copiado.", "success");
+  }
+});
+
+/*
+  Ao mudar orientação ou tamanho da janela, a ROI continua sendo
+  calculada em porcentagem e, portanto, acompanha automaticamente
+  o novo tamanho do visor.
+*/
+window.addEventListener("resize", applyROI);
+window.addEventListener("orientationchange", () => {
+  setTimeout(applyROI, 250);
+});
+
+/*
+  Ao sair da página, desligamos a câmera.
+  Nenhuma imagem é salva.
+*/
+window.addEventListener("pagehide", () => {
+  running = false;
+
+  if (scanTimer) {
+    clearTimeout(scanTimer);
+    scanTimer = null;
+  }
+
+  stopCamera();
+});
+
+/* Inicialização visual. */
+applyROI();
+
+if (!window.isSecureContext && location.hostname !== "localhost") {
+  setStatus(
+    "A câmera exige HTTPS. Use GitHub Pages ou outro endereço HTTPS.",
+    "warning"
+  );
+}
+</script>
 </body>
 </html>
