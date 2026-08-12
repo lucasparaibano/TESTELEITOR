@@ -1,964 +1,1126 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#0b1220">
-  <title>LEITOR INTELIGENTE</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>Gerador de Script de OS</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<style>
+  :root{
+    --bg:#12181a;
+    --panel:#1a2226;
+    --panel-2:#202a2f;
+    --line:#2b363b;
+    --teal:#00c2a8;
+    --teal-dim:#0a3d36;
+    --amber:#e8a33d;
+    --text:#e8edee;
+    --text-dim:#8ea3a8;
+    --mono: 'Consolas','SFMono-Regular','Menlo',monospace;
+    --sans: -apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--sans); min-height:100vh;
+  }
+  .topbar{
+    max-width:none; width:100%; margin:0;
+    padding:18px 20px; border-bottom:1px solid var(--line);
+    border-left:1px solid var(--line); border-right:1px solid var(--line);
+    display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+  }
+  .topbar .dot{width:9px;height:9px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px var(--teal);}
+  .topbar h1{font-size:16px; margin:0; letter-spacing:.03em; font-weight:600;}
+  .topbar span{color:var(--text-dim); font-size:12.5px;}
 
-  <!--
-    Biblioteca usada:
-    ZXing Browser 0.2.1
-    - Leitura de códigos 1D e 2D diretamente no navegador.
-    - O detector recebe somente o crop matemático da área de leitura.
-    - Nenhuma imagem é enviada para um servidor pelo código abaixo.
-  -->
-  <script src="https://unpkg.com/@zxing/browser@0.2.1"></script>
+  .layout{
+    max-width:none; width:100%; margin:0;
+    display:grid; grid-template-columns: 1fr; gap:0;
+    border-left:1px solid var(--line); border-right:1px solid var(--line);
+  }
 
-  <style>
-    :root {
-      --bg: #0b1220;
-      --panel: #111a2b;
-      --panel2: #172235;
-      --border: #27364f;
-      --text: #f5f7fb;
-      --muted: #9aa8bd;
-      --primary: #2f80ed;
-      --success: #20c997;
-      --warning: #f2c94c;
-      --danger: #eb5757;
-    }
+  .formcol{
+    padding:16px 16px 90px; border-bottom:1px solid var(--line); overflow-y:auto;
+  }
 
-    * { box-sizing: border-box; }
+  .section{
+    margin-bottom:14px; background:var(--panel); border:1px solid var(--line);
+    border-radius:16px; padding:14px 14px;
+  }
+  .section h2{
+    font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--teal);
+    margin:0 0 12px; font-weight:700;
+  }
+  label{
+    display:block; font-size:12.5px; color:var(--text-dim); margin:10px 0 4px;
+  }
+  input[type=text], input[type=number], textarea, select{
+    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    border-radius:12px; padding:14px 14px; font-size:17px; min-height:52px; font-family:var(--sans);
+  }
+  input:focus, textarea:focus, select:focus{ outline:none; border-color:var(--teal); }
+  textarea{resize:vertical; min-height:52px;}
+  .grid2{display:grid; grid-template-columns:1fr; gap:0 14px;}
+  .grid3{display:grid; grid-template-columns:1fr; gap:0 14px;}
 
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: linear-gradient(160deg, #08101d, #111a2b);
-      color: var(--text);
-      font-family: Arial, Helvetica, sans-serif;
-    }
+  .cat-list{display:flex; flex-direction:column; gap:6px;}
+  .cat-opt{
+    display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:6px;
+    border:1px solid var(--line); cursor:pointer; font-size:13px; background:var(--panel-2);
+  }
+  .cat-opt.active{ border-color:var(--teal); background:var(--teal-dim); color:#fff; }
+  .cat-opt input{width:auto;}
 
-    main {
-      width: min(720px, 100%);
-      margin: 0 auto;
-      padding: 20px 14px 30px;
-    }
+  .mat-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:6px 0; border-bottom:1px dashed var(--line); font-size:13px;
+  }
+  .mat-row:last-child{border-bottom:none;}
+  .mat-row input{width:70px; text-align:center;}
 
-    header {
-      text-align: center;
-      margin-bottom: 18px;
-    }
+  .radio-row{display:flex; gap:16px; align-items:center; margin-top:6px;}
+  .radio-row label{display:flex; align-items:center; gap:6px; margin:0; font-size:13px; color:var(--text);}
+  .radio-row input{width:auto;}
 
-    h1 {
-      margin: 0;
-      font-size: clamp(25px, 6vw, 36px);
-      letter-spacing: 1px;
-    }
+  .app-row{display:flex; flex-wrap:wrap; gap:10px 18px; margin-top:6px;}
+  .app-row label{display:flex; align-items:center; gap:6px; margin:0; font-size:12.5px; color:var(--text);}
+  .app-row input{width:auto;}
 
-    .subtitle {
-      margin: 6px 0 0;
-      color: var(--muted);
-      font-size: 14px;
-    }
+  .equipe-toggle{
+    max-width:none; width:100%; margin:0; display:flex; gap:0;
+    border-left:1px solid var(--line); border-right:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  .equipe-opt{
+    flex:1; text-align:center; padding:13px 10px; font-size:12.5px; font-weight:700;
+    letter-spacing:.04em; text-transform:uppercase; cursor:pointer; color:var(--text-dim);
+    background:var(--panel); border-right:1px solid var(--line); user-select:none;
+  }
+  .equipe-opt:last-child{border-right:none;}
+  .equipe-opt input{display:none;}
+  .equipe-opt.active{ color:#04211d; background:var(--teal); }
 
-    .card {
-      background: rgba(17, 26, 43, .96);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 14px;
-      box-shadow: 0 14px 40px rgba(0,0,0,.22);
-    }
+  .toggle-row{
+    display:flex; flex-direction:column; align-items:stretch; padding:6px 0;
+    border-bottom:1px dashed var(--line);
+  }
+  .toggle-row:last-child{border-bottom:none;}
+  .toggle-row > label{
+    display:flex; align-items:center; gap:8px; margin:0; font-size:13px; color:var(--text);
+  }
+  .toggle-row > label input{width:auto;}
+  .sub-options{
+    display:none; margin-top:8px; padding-left:24px; flex-wrap:wrap; gap:8px 16px;
+  }
+  .sub-options label{
+    display:flex; align-items:center; gap:6px; margin:0; font-size:12.5px; color:var(--text-dim);
+  }
+  .sub-options input{width:auto;}
 
-    .camera-wrap {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 16 / 9;
-      overflow: hidden;
-      border-radius: 14px;
-      background: #050a12;
-      border: 1px solid var(--border);
-    }
+  .dbm-slider-wrap{margin-top:6px;}
+  .dbm-slider-wrap .dbm-value{
+    text-align:center; font-size:22px; font-weight:700; color:var(--teal); margin-bottom:8px;
+  }
 
-    video {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      background: #000;
-    }
+  .previewcol{display:none;/*hidden on mobile*/
+    padding:20px 20px 24px; display:flex; flex-direction:column; background:#0e1315;
+  }
+  .preview-head{
+    position:sticky; top:0; background:#0e1315; z-index:5;
+    display:flex; justify-content:space-between; align-items:center;
+    padding-top:4px; padding-bottom:8px; margin-bottom:10px;
+  }
+  .preview-head span{font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--text-dim);}
+  #copyBtn{
+    background:var(--teal); color:#04211d; border:none; border-radius:6px;
+    padding:12px 18px; font-weight:700; font-size:13.5px; cursor:pointer; letter-spacing:.02em;
+  }
+  #copyBtn:active{transform:translateY(1px);}
+  #copyBtn.copied{background:#7fe0cf;}
 
-    .placeholder {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-items: center;
-      padding: 30px;
-      text-align: center;
-      color: var(--muted);
-      z-index: 2;
-      pointer-events: none;
-    }
+  pre#output{
+    flex:1; background:#0b0f11; border:1px solid var(--line); border-radius:16px;
+    padding:16px 18px; font-family:var(--mono); font-size:12.6px; line-height:1.55;
+    color:#d6f5ee; white-space:pre-wrap; word-break:break-word; margin:0;
+    max-height:calc(100vh - 150px); overflow-y:auto;
+  }
+  .missing{color:var(--amber);}
+  .footnote{font-size:11px; color:var(--text-dim); margin-top:10px;}
 
-    /*
-      ÁREA FIXA DE LEITURA
+  /* ---------- LEITOR DE CÓDIGO DE BARRAS ---------- */
+  .input-with-scan{display:flex; gap:8px; align-items:stretch;}
+  .input-with-scan input{flex:1; min-width:0;}
+  .scan-btn{
+    flex:0 0 auto; background:var(--panel-2); border:1px solid var(--teal); color:var(--teal);
+    border-radius:12px; padding:0 14px; font-size:18px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .scan-btn:active{background:var(--teal-dim);}
 
-      O tamanho padrão foi reduzido em relação à versão anterior:
-      72% da largura x 18% da altura do visor.
-
-      A área é propositalmente horizontal porque códigos de barras 1D
-      normalmente ocupam uma faixa horizontal. Ela não pode mais ser
-      redimensionada ou movida pelo usuário.
-    */
-    .roi {
-      position: absolute;
-      left: 14%;
-      top: 41%;
-      width: 72%;
-      height: 18%;
-      border: 3px solid #20c997;
-      border-radius: 8px;
-      z-index: 4;
-      pointer-events: none;
-      box-shadow:
-        0 0 0 9999px rgba(0,0,0,.42),
-        0 0 18px rgba(32,201,151,.45);
-    }
-
-    .roi-label {
-      position: absolute;
-      left: 50%;
-      bottom: calc(100% + 7px);
-      transform: translateX(-50%);
-      white-space: nowrap;
-      background: rgba(0,0,0,.72);
-      border-radius: 6px;
-      padding: 4px 8px;
-      font-size: 11px;
-      font-weight: bold;
-      letter-spacing: .5px;
-    }
-
-    .scan-line {
-      position: absolute;
-      left: 4%;
-      right: 4%;
-      top: 50%;
-      height: 2px;
-      background: rgba(32,201,151,.9);
-      box-shadow: 0 0 8px rgba(32,201,151,.9);
-    }
-
-    .status {
-      margin-top: 12px;
-      min-height: 42px;
-      padding: 11px 13px;
-      border-radius: 10px;
-      background: var(--panel2);
-      color: var(--muted);
-      font-size: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-    }
-
-    .status.running { color: #8ed8ff; }
-    .status.success { color: #75e6bd; }
-    .status.warning { color: #ffe08a; }
-    .status.error { color: #ff9a9a; }
-
-    .progress {
-      height: 3px;
-      margin-top: 8px;
-      overflow: hidden;
-      border-radius: 99px;
-      background: transparent;
-      opacity: 0;
-    }
-
-    .progress.active {
-      opacity: 1;
-      background: var(--panel2);
-    }
-
-    .progress.active::after {
-      content: "";
-      display: block;
-      width: 35%;
-      height: 100%;
-      background: var(--primary);
-      animation: progress 1s infinite ease-in-out;
-    }
-
-    @keyframes progress {
-      from { transform: translateX(-120%); }
-      to { transform: translateX(310%); }
-    }
-
-    .controls {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 9px;
-      margin-top: 12px;
-    }
-
-    button {
-      min-height: 48px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: var(--panel2);
-      color: var(--text);
-      font-weight: 700;
-      cursor: pointer;
-      padding: 10px 12px;
-    }
-
-    button:active { transform: scale(.98); }
-
-    button:disabled {
-      opacity: .45;
-      cursor: not-allowed;
-    }
-
-    button.primary {
-      background: var(--primary);
-      border-color: var(--primary);
-    }
-
-    button.danger {
-      background: rgba(235,87,87,.14);
-      border-color: rgba(235,87,87,.45);
-      color: #ffb0b0;
-    }
-
-    .result-title {
-      margin: 20px 0 8px;
-      font-size: 13px;
-      font-weight: bold;
-      color: var(--muted);
-      letter-spacing: .7px;
-    }
-
-    textarea {
-      width: 100%;
-      min-height: 110px;
-      resize: vertical;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: #09111f;
-      color: var(--text);
-      padding: 14px;
-      font: 700 20px/1.35 monospace;
-      outline: none;
-    }
-
-    textarea:focus {
-      border-color: var(--primary);
-    }
-
-    .method {
-      margin-top: 9px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    .result-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 9px;
-      margin-top: 9px;
-    }
-
-    .hint {
-      margin: 12px 2px 0;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.45;
-      text-align: center;
-    }
-
-    @media (max-width: 480px) {
-      main { padding: 12px 10px 24px; }
-      .card { padding: 10px; }
-      .camera-wrap { aspect-ratio: 4 / 3; }
-      .controls { grid-template-columns: 1fr; }
-      .result-actions { grid-template-columns: 1fr 1fr; }
-    }
-  </style>
+  .scanner-modal{
+    position:fixed; inset:0; background:#000; z-index:10000; display:none;
+    flex-direction:column;
+  }
+  .scanner-modal.open{display:flex;}
+  .scanner-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px; color:#fff; background:#0e1315; border-bottom:1px solid var(--line);
+  }
+  .scanner-header span{font-size:13px; font-weight:700; letter-spacing:.03em; text-transform:uppercase;}
+  #scannerCloseBtn{
+    background:none; border:none; color:#fff; font-size:22px; line-height:1; cursor:pointer; padding:4px 10px;
+  }
+  .scanner-viewport{
+    flex:1; position:relative; overflow:hidden; background:#000;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #scannerVideo{ width:100%; height:100%; object-fit:cover; }
+  .scanner-frame{
+    position:absolute; left:6%; right:6%; top:32%; bottom:32%;
+    border:3px solid var(--teal); border-radius:14px; box-shadow:0 0 0 2000px rgba(0,0,0,.4);
+    pointer-events:none;
+  }
+  .scanner-footer{
+    padding:14px 16px 24px; background:#0e1315; border-top:1px solid var(--line);
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+  }
+  #scannerStatus{color:var(--text-dim); font-size:12.5px; text-align:center;}
+  #scannerTorchBtn{
+    background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:10px;
+    padding:10px 18px; font-size:13px; cursor:pointer; display:none;
+  }
+  #scannerTorchBtn.on{background:var(--teal); color:#04211d; border-color:var(--teal);}
+</style>
 </head>
-
 <body>
-<main>
-  <header>
-    <h1>LEITOR INTELIGENTE</h1>
-    <p class="subtitle">Leitor de código de barras</p>
-  </header>
 
-  <section class="card">
-    <div class="camera-wrap" id="cameraWrap">
-      <video id="video" autoplay muted playsinline></video>
+<div class="topbar">
+  <div class="dot"></div>
+  <h1>GERADOR DE SCRIPT · OS</h1>
+  <span>selecione a categoria → preencha só o que muda → copie o script e pronto | Desenvolvido por: Monique Oliveira</span>
+</div>
 
-      <div class="placeholder" id="placeholder">
-        <div>
-          <strong>Câmera desligada</strong><br>
-          Toque em "INICIAR LEITURA" para começar.
+<div class="equipe-toggle" id="equipeToggle">
+  <label class="equipe-opt active" data-equipe="padrao">
+    <input type="radio" name="equipe" value="padrao" checked> Equipe Padrão
+  </label>
+  <label class="equipe-opt" data-equipe="fusao">
+    <input type="radio" name="equipe" value="fusao"> Equipe Fusão
+  </label>
+</div>
+
+<div class="layout" id="layout">
+  <div class="formcol">
+
+<div id="formPadrao">
+
+    <div class="section">
+      <h2>Descrição da Solicitação</h2>
+      <label>DESCREVA A SOLICITAÇÃO
+      <span style="color:#8ea3a8;font-style:italic;">(ex: PROVISIONA ESSA ONU EM BRIDGE)</span>
+      </label>
+      <textarea id="descricaoServico">DESCRIÇÃO DO SERVIÇO</textarea>
+    </div>
+
+    <div class="section">
+      <h2>Categoria da Atividade</h2>
+      <div class="cat-list" id="catList"></div>
+    </div>
+
+    <div class="section" id="secIdentificacao">
+      <h2>Identificação</h2>
+      <div class="grid2">
+        <div><label>OS</label><input type="text" id="os" placeholder="161445"></div>
+        <div><label>Técnico</label><input type="text" id="tecnico" placeholder="TÉCNICO/AUXILIAR"></div>
+      </div>
+      <label>Cliente</label>
+      <input type="text" id="cliente" placeholder="NOME DO CLIENTE">
+      <label>Cidade</label>
+      <select id="cidade">
+        <option value="Maceió - AL">Maceió - AL</option>
+        <option value="Bom Conselho - PE">Bom Conselho - PE</option>
+        <option value="Outra">Outra</option>
+      </select>
+      <div id="cidadeOutraWrap" style="display:none;">
+        <label>Digite o nome da cidade</label>
+        <input type="text" id="cidadeOutra" placeholder="NOME DA CIDADE">
+      </div>
+    </div>
+
+    <div class="section" id="secEquipamentos">
+      <h2>Equipamentos</h2>
+      <div id="equipAntigoWrap">
+        <div class="grid2">
+          <div><label>ONU Antiga</label><input type="text" id="onuAntiga"></div>
+          <div><label>PON (ONU Antiga)</label><input type="text" id="ponOnuAntiga"></div>
+        </div>
+        <div class="grid2">
+          <div><label>Roteador Antigo</label><input type="text" id="roteadorAntigo"></div>
+          <div><label>SN (Roteador Antigo)</label><input type="text" id="snRoteadorAntigo"></div>
         </div>
       </div>
-
-      <div class="roi" id="roi" aria-label="Área fixa de leitura">
-        <span class="roi-label">ÁREA DE LEITURA</span>
-        <span class="scan-line"></span>
+      <div class="grid2">
+        <div><label>ONU Nova</label><input type="text" id="onu"></div>
+        <div><label>PON (ONU)</label>
+          <div class="input-with-scan">
+            <input type="text" id="ponOnu">
+            <button type="button" class="scan-btn" onclick="openScanner('ponOnu')" title="Ler código de barras">📷</button>
+          </div>
+        </div>
       </div>
+      <div class="grid2">
+        <div><label>Roteador Novo</label><input type="text" id="roteador"></div>
+        <div><label>SN (Roteador)</label>
+          <div class="input-with-scan">
+            <input type="text" id="ponRot">
+            <button type="button" class="scan-btn" onclick="openScanner('ponRot')" title="Ler código de barras">📷</button>
+          </div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div><label>CTO</label><input type="text" id="cto" placeholder="ABC-4"></div>
+        <div><label>DBM: <span id="dbmValue">-20 dBm</span></label><input type="range" id="porta" min="16" max="35" value="20"></div>
+      </div>
+      <div id="dbmJustWrap" style="display:none;margin-top:10px">
+      <label>Justificativa do DBM elevado</label><textarea id="dbmJust"></textarea></div><div style="margin-top:12px;display:flex;flex-direction:column;gap:8px"><label><input type="checkbox" id="ipv" checked> IPV6 e IPV4</label><label><input type="checkbox" id="remoto" checked> ACESSO REMOTO ATIVO</label></div>
     </div>
 
-    <div class="status" id="status">
-      <span id="statusText">Aguardando início.</span>
+    <div class="section" id="secRede">
+      <h2>Rede</h2>
+      <div class="grid2">
+        <div><label>Rede Wi-Fi</label><input type="text" id="wifi"></div>
+        <div><label>Senha</label><input type="text" id="senha"></div>
+      </div>
+      <label>Observação</label>
+      <textarea id="obs">INSTALAÇÃO REALIZADA COM SUCESSO!</textarea>
     </div>
 
-    <div class="progress" id="progress"></div>
-
-    <div class="controls">
-      <button class="primary" id="startBtn">INICIAR LEITURA</button>
-      <button class="danger" id="stopBtn" disabled>PARAR LEITURA</button>
+    <div class="section" id="secMateriais">
+      <h2>Materiais Utilizados</h2>
+      <div id="materiais"></div>
     </div>
 
-    <p class="hint">
-      Posicione o código dentro da moldura. O sistema tenta usar a câmera
-      traseira principal e analisa somente os pixels dentro da área verde.
-    </p>
+    <div class="section" id="secContratoApps">
+      <h2>Contrato e Aplicativos</h2>
+      <label>Contrato assinado?</label>
+      <div class="radio-row">
+        <label><input type="radio" name="contrato" value="sim" checked> SIM</label>
+        <label><input type="radio" name="contrato" value="nao"> NÃO</label>
+      </div>
+      <div id="contratoMotivoWrap" style="display:none;">
+        <label>Se não, porquê</label>
+        <input type="text" id="contratoMotivo">
+      </div>
 
-    <div class="result-title">RESULTADO</div>
+      <label style="margin-top:14px;">Ponto de rede instalado?</label>
+      <div class="radio-row">
+        <label><input type="radio" name="ponto" value="sim"> SIM</label>
+        <label><input type="radio" name="ponto" value="nao" checked> NÃO</label>
+      </div>
+      <div id="pontoMotivoWrap" style="display:none;">
+        <label>Se não, porquê</label>
+        <input type="text" id="pontoMotivo">
+      </div>
 
-    <textarea id="result" readonly placeholder="O código lido aparecerá aqui..."></textarea>
+      <label style="margin-top:14px;">Apps instalados no cliente</label>
+      <div class="app-row" id="appsRow"></div>
 
-    <div class="method">
-      <strong>Método:</strong> <span id="method">—</span>
+      <label>Conectados</label>
+      <input type="text" id="conectados" placeholder="ex: SMART TV, CELULAR, NOTEBOOK">
     </div>
 
-    <div class="result-actions">
-      <button id="copyBtn">COPIAR</button>
-      <button id="clearBtn">LIMPAR</button>
+    <div class="section" id="secRetirada" style="display:none;">
+      <h2>Dados da Retirada</h2>
+      <div class="grid2">
+        <div><label>O.S</label><input type="text" id="ret_os" placeholder="161445"></div>
+        <div><label>Nome</label><input type="text" id="ret_nome" placeholder="NOME DO CLIENTE"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Modelo da ONU</label><input type="text" id="ret_modeloOnu"></div>
+        <div><label>PON</label><input type="text" id="ret_pon"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Roteador</label><input type="text" id="ret_roteador"></div>
+        <div><label>Serial</label><input type="text" id="ret_serial"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Qnt. Plaqueta</label><input type="number" min="0" id="ret_qntPlaqueta"></div>
+        <div><label>Qnt. Esticador</label><input type="number" min="0" id="ret_qntEsticador"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Qnt. Drop</label><input type="number" min="0" id="ret_qntDrop"></div>
+        <div><label>Qnt. Conector Verde</label><input type="number" min="0" id="ret_qntConVerde"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Qnt. Conector Azul</label><input type="number" min="0" id="ret_qntConAzul"></div>
+        <div><label>Cidade</label><input type="text" id="ret_cidade"></div>
+      </div>
+      <label>Observação</label>
+      <textarea id="ret_obs"></textarea>
+      <label>Técnico</label>
+      <input type="text" id="ret_tecnico" placeholder="TÉCNICO/AUXILIAR">
     </div>
-  </section>
-</main>
 
-<!--
-  Canvas invisível.
-  Ele recebe SOMENTE o recorte matemático da área verde antes de ser
-  enviado ao ZXing. Portanto, textos/códigos fora da moldura não são
-  analisados.
--->
-<canvas id="cropCanvas" hidden></canvas>
+</div>
+
+<div id="formFusao" style="display:none;">
+
+  <div class="section">
+    <h2>Categoria</h2>
+    <div class="cat-list" id="fusaoCatList"></div>
+  </div>
+
+  <div class="section">
+    <h2>Dados da O.S</h2>
+    <label>Número da O.S</label>
+    <input type="text" id="f_os" placeholder="161445">
+    <label>Projeto-CTO</label>
+    <input type="text" id="f_projetoCto" placeholder="ex: BCA-4">
+    <label>Técnico / Auxiliar</label>
+    <input type="text" id="f_tecnico" placeholder="TÉCNICO/AUXILIAR">
+    <label>Cidade</label>
+    <select id="f_cidade">
+      <option value="Maceió - AL">Maceió - AL</option>
+      <option value="Bom Conselho - PE">Bom Conselho - PE</option>
+      <option value="Outra">Outra</option>
+    </select>
+    <div id="f_cidadeOutraWrap" style="display:none;">
+      <label>Digite o nome da cidade</label>
+      <input type="text" id="f_cidadeOutra" placeholder="NOME DA CIDADE">
+    </div>
+    <label>Observações</label>
+    <textarea id="f_obs" placeholder="Descreva o que foi encontrado e realizado na atividade."></textarea>
+  </div>
+
+  <div class="section">
+    <h2>Materiais Utilizados</h2>
+    <label>FIBRA</label>
+    <div class="app-row" id="fusaoFibraOpts"></div>
+    <div id="fusaoFibraMetragens"></div>
+    <div id="fusaoMateriaisSimples"></div>
+    <div id="fusaoSplitterCon"></div>
+    <div id="fusaoSplitterDes"></div>
+    <div id="fusaoAlca"></div>
+  </div>
+
+  <div class="section">
+    <h2>Sinal da Caixa</h2>
+    <div class="dbm-slider-wrap">
+      <div class="dbm-value" id="f_dbmValue">-20 dBm</div>
+      <input type="range" id="f_dbm" min="0" max="40" value="20" step="1">
+    </div>
+  </div>
+
+</div>
+
+  </div>
+
+  <div class="previewcol">
+    <div class="preview-head">
+      <span>Script gerado</span>
+      <button id="copyBtn" onclick="copyOutput()">COPIAR SCRIPT</button>
+    </div>
+    <pre id="output"></pre>
+    <div class="footnote">Campos em branco aparecem como reticências — confira antes de colar na OS.</div>
+  </div>
+</div>
+
+<div class="scanner-modal" id="scannerModal">
+  <div class="scanner-header">
+    <span>Leitor de código de barras</span>
+    <button id="scannerCloseBtn" onclick="closeScanner()">✕</button>
+  </div>
+  <div class="scanner-viewport">
+    <video id="scannerVideo" autoplay playsinline muted></video>
+    <div class="scanner-frame"></div>
+  </div>
+  <div class="scanner-footer">
+    <button id="scannerTorchBtn" onclick="toggleTorch()">🔦 Lanterna</button>
+    <div id="scannerStatus">Aponte a câmera para o código de barras</div>
+  </div>
+</div>
 
 <script>
-"use strict";
+const CATEGORIAS = [
+  "INSTALAÇÃO",
+  "TRANSFERÊNCIA",
+  "SUPORTE",
+  "ATIVAÇÃO / ADEQUAÇÃO PPPOE ",
+  "MUDANÇA DE COMODO",
+  "UPGRADE",
+  "TROCA DE EQUIPAMENTOS",
+  "ENTREGA DE CHIP",
+  "PONTO DE REDE",
+  "INSTALAÇÃO ROTEADOR MESH",
+  "RETIRADA"
 
-/*
-  ================================================================
-  CONFIGURAÇÕES
-  ================================================================
+];
 
-  Se quiser alterar futuramente o tamanho da área fixa, modifique:
-    ROI.x      = distância da esquerda (%)
-    ROI.y      = distância do topo (%)
-    ROI.width  = largura (%)
-    ROI.height = altura (%)
 
-  A versão atual usa uma área horizontal de 72% x 18%.
-*/
-const ROI = {
-  x: 14,
-  y: 41,
-  width: 72,
-  height: 18
-};
 
-const SCAN_INTERVAL_MS = 160;
 
-const video = document.getElementById("video");
-const cameraWrap = document.getElementById("cameraWrap");
-const placeholder = document.getElementById("placeholder");
-const roi = document.getElementById("roi");
-const cropCanvas = document.getElementById("cropCanvas");
+const MATERIAIS = [
+  ["conVerde", "CONECTOR VERDE"],
+  ["conAzul", "CONECTOR AZUL"],
+  ["metrosDrop", "METROS DE DROP"],
+  ["esticadores", "ESTICADORES"],
+  ["fixaFios", "FIXA FIOS"],
+  ["abracadeira", "ABRAÇADEIRA"],
+  ["alcasFibra", "ALÇAS PARA FIBRA DROP"],
+  ["fitaBap", "FITA ISOLANTE"],
+  ["metrosCabo5e", "METROS DE CABO 5E"],
+  ["rj45", "RJ 45"],
+  ["plaquetas", "PLAQUETAS DTEL"]
+];
 
-const statusBox = document.getElementById("status");
-const statusText = document.getElementById("statusText");
-const progress = document.getElementById("progress");
+const APPS = [
+  ["appCentral", "CENTRAL DO ASSINANTE"],
+  ["appDtelPlay", "DTEL PLAY"],
+  ["appParamount", "MAPEAMENTO WIFIMAN"],
+  ["appPontoRede", "AMAZON PRIME"],
+  ["appTeste", "TESTE DE VELOCIDADE"]
+];
 
-const resultField = document.getElementById("result");
-const methodField = document.getElementById("method");
+let selectedCat = "INSTALAÇÃO";
 
-const startBtn = document.getElementById("startBtn");
-const stopBtn = document.getElementById("stopBtn");
-const copyBtn = document.getElementById("copyBtn");
-const clearBtn = document.getElementById("clearBtn");
+// =====================================================================
+// EQUIPE FUSÃO — configuração
+// Para adicionar/remover itens, basta editar as listas abaixo.
+// Cada item de material é [id_unico, "RÓTULO EXIBIDO"].
+// =====================================================================
 
-let stream = null;
-let running = false;
-let scanTimer = null;
-let barcodeReader = null;
-let selectedCameraId = null;
+// Categorias exibidas na Equipe Fusão (edite livremente esta lista)
+const FUSAO_CATEGORIAS = [
+  "TROCA DE POSTE",
+  "ROMPIMENTO DE FIBRA",
+  "FOGO",
+  "FURTO",
+  "AMPLIAÇÃO DE REDE",
+  "ESTRUTURA",
+  "ADEQUAÇÃO DE REDE"
+];
 
-/* Aplica a posição fixa da ROI. */
-function applyROI() {
-  roi.style.left = ROI.x + "%";
-  roi.style.top = ROI.y + "%";
-  roi.style.width = ROI.width + "%";
-  roi.style.height = ROI.height + "%";
-}
+// Tamanhos de FIBRA — ao marcar um, abre um campo de metragem
+// correspondente. Pode marcar mais de um ao mesmo tempo.
+const FUSAO_FIBRA_TAMANHOS = ["12FO", "24FO", "36FO", "48FO", "72FO", "144FO"];
 
-/*
-  ================================================================
-  CÂMERA PRINCIPAL
-  ================================================================
+// Materiais simples (só marca/desmarca, sem quantidade nem sub-opção)
+const FUSAO_MATERIAIS_SIMPLES = [
+  ["f_plaqueta", "PLAQUETA"],
+  ["f_olhal",    "OLHAL"],
+  ["f_raquete",  "RAQUETE"],
+  ["f_caixa24",  "CAIXA DE EMENDA 24F"],
+  ["f_caixa44",  "CAIXA DE EMENDA 44F"],
+  ["f_cto",      "CTO"],
+  ["f_cdoi",     "CDOI"]
+];
 
-  "facingMode: environment" sozinho NÃO garante a lente principal.
-  Muitos celulares possuem:
-    - câmera principal 1x;
-    - grande-angular 0.5x;
-    - teleobjetiva;
-    - outras câmeras.
+// Opções de razão para os splitters (edite se precisar de outras razões)
+const FUSAO_SPLITTER_RATIOS = ["1X2", "1X4", "1X8", "1X16", "1X32"];
 
-  Depois de obter uma permissão inicial, enumeramos as câmeras e damos
-  prioridade a nomes que normalmente representam a câmera traseira
-  principal. Também descartamos nomes que indiquem ultrawide/wide/0.5x.
+// Opções de tamanho para a alça
+const FUSAO_ALCA_TAMANHOS = ["12F", "24F", "36F", "48F", "72F", "144F"];
 
-  O navegador não fornece uma API universal dizendo "esta é a lente 1x".
-  Por isso usamos uma seleção heurística. Em Android/Chrome, nomes como
-  "camera2 0, facing back" normalmente correspondem à câmera principal.
+let selectedFusaoCat = FUSAO_CATEGORIAS[0];
 
-  Se o aparelho não fornecer nomes úteis, mantemos a câmera traseira
-  escolhida pelo navegador em vez de arriscar uma câmera inexistente.
-*/
-
-function cameraScore(device) {
-  const label = (device.label || "").toLowerCase();
-
-  let score = 0;
-
-  // Penaliza lentes que normalmente são grande-angular/ultrawide.
-  if (/ultra.?wide|ultrawide|wide angle|wide-angle|0\.5x|0,5x/.test(label)) {
-    score -= 100;
-  }
-
-  if (/front|frontal|user facing/.test(label)) {
-    score -= 200;
-  }
-
-  // Prioriza câmera traseira.
-  if (/back|rear|environment|traseira/.test(label)) {
-    score += 80;
-  }
-
-  // No Android Camera2, "camera2 0, facing back" é frequentemente a principal.
-  if (/camera2\s*0/.test(label)) {
-    score += 60;
-  }
-
-  // Índices baixos são normalmente as câmeras principais em muitos aparelhos.
-  if (/\bcamera\s*0\b/.test(label)) {
-    score += 35;
-  }
-
-  // Tele geralmente não é desejada para leitura próxima.
-  if (/tele|zoom/.test(label)) {
-    score -= 25;
-  }
-
-  return score;
-}
-
-async function chooseMainBackCamera() {
-  /*
-    A enumeração de devices normalmente só revela os labels depois que
-    o usuário concede acesso à câmera. Por isso esta função é chamada
-    após uma primeira abertura da câmera.
-  */
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const cameras = devices.filter(d => d.kind === "videoinput");
-
-  if (!cameras.length) return null;
-
-  const ranked = [...cameras].sort((a, b) => cameraScore(b) - cameraScore(a));
-
-  // Se não houver labels, não temos como distinguir as lentes.
-  const hasUsefulLabels = cameras.some(c => c.label && c.label.trim());
-
-  if (!hasUsefulLabels) return null;
-
-  return ranked[0];
-}
-
-async function startCamera() {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error(
-      "Este navegador não oferece acesso à câmera. Use uma versão recente do Chrome ou Safari."
-    );
-  }
-
-  if (!window.isSecureContext && location.hostname !== "localhost") {
-    throw new Error(
-      "A câmera precisa de HTTPS. Abra o site por HTTPS, por exemplo pelo GitHub Pages."
-    );
-  }
-
-  /*
-    PRIMEIRA ETAPA:
-    solicitamos a câmera traseira. Isso também libera os nomes dos
-    dispositivos para enumerateDevices() em navegadores modernos.
-  */
-  let initialStream;
-
-  try {
-    initialStream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        frameRate: { ideal: 30, max: 30 }
-      }
+function buildFusaoCatList(){
+  const wrap = document.getElementById('fusaoCatList');
+  wrap.innerHTML = FUSAO_CATEGORIAS.map(c => `
+    <label class="cat-opt${c===selectedFusaoCat?' active':''}" data-cat="${c}">
+      <input type="radio" name="fusaoCategoria" value="${c}" ${c===selectedFusaoCat?'checked':''}>
+      ${c}
+    </label>
+  `).join('');
+  wrap.querySelectorAll('.cat-opt').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      selectedFusaoCat = el.dataset.cat;
+      wrap.querySelectorAll('.cat-opt').forEach(o=>o.classList.remove('active'));
+      el.classList.add('active');
+      render();
     });
-  } catch (error) {
-    throw normalizeCameraError(error);
-  }
+  });
+}
 
-  /*
-    Agora que há permissão, tentamos identificar especificamente a
-    câmera traseira principal.
-  */
-  let mainCamera = null;
+function buildFusaoFibra(){
+  const optsWrap = document.getElementById('fusaoFibraOpts');
+  optsWrap.innerHTML = FUSAO_FIBRA_TAMANHOS.map(t=>`
+    <label><input type="checkbox" class="f-fibra-opt" id="f_fibra_${t}_chk" value="${t}"> ${t}</label>
+  `).join('');
 
-  try {
-    mainCamera = await chooseMainBackCamera();
-  } catch (error) {
-    console.warn("Não foi possível enumerar as câmeras:", error);
-  }
+  const metWrap = document.getElementById('fusaoFibraMetragens');
+  metWrap.innerHTML = FUSAO_FIBRA_TAMANHOS.map(t=>`
+    <div class="mat-row" id="f_fibra_${t}_row" style="display:none">
+      <span>METRAGEM ${t}</span>
+      <input type="number" min="0" id="f_fibra_${t}_metros" placeholder="metros">
+    </div>
+  `).join('');
 
-  /*
-    Se encontramos uma câmera específica e ela é diferente da inicial,
-    trocamos para ela.
-  */
-  const initialTrack = initialStream.getVideoTracks()[0];
-  const initialDeviceId = initialTrack?.getSettings?.().deviceId;
-
-  if (mainCamera?.deviceId && mainCamera.deviceId !== initialDeviceId) {
-    try {
-      initialStream.getTracks().forEach(track => track.stop());
-
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          deviceId: { exact: mainCamera.deviceId },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30, max: 30 }
-        }
-      });
-
-      selectedCameraId = mainCamera.deviceId;
-    } catch (error) {
-      /*
-        Se a câmera específica não puder ser aberta, voltamos à câmera
-        traseira que o navegador conseguiu abrir inicialmente.
-      */
-      console.warn("Não foi possível selecionar a câmera principal:", error);
-
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          }
-        });
-      } catch (fallbackError) {
-        throw normalizeCameraError(fallbackError);
+  optsWrap.querySelectorAll('.f-fibra-opt').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const row = document.getElementById('f_fibra_'+cb.value+'_row');
+      row.style.display = cb.checked ? 'flex' : 'none';
+      if(!cb.checked){
+        document.getElementById('f_fibra_'+cb.value+'_metros').value = '';
       }
+      render();
+    });
+  });
+}
+
+function buildFusaoMateriaisSimples(){
+  const wrap = document.getElementById('fusaoMateriaisSimples');
+  wrap.innerHTML = FUSAO_MATERIAIS_SIMPLES.map(([id,label])=>`
+    <div class="toggle-row">
+      <label><input type="checkbox" id="${id}"> ${label}</label>
+      <div class="sub-options" id="${id}_opts">
+        <label>QTD: <input type="number" min="0" id="${id}_qtd" style="width:70px"></label>
+      </div>
+    </div>
+  `).join('');
+
+  FUSAO_MATERIAIS_SIMPLES.forEach(([id])=>{
+    const cb = document.getElementById(id);
+    const opts = document.getElementById(id+'_opts');
+    cb.addEventListener('change', ()=>{
+      opts.style.display = cb.checked ? 'flex' : 'none';
+      if(!cb.checked){
+        document.getElementById(id+'_qtd').value = '';
+      }
+      render();
+    });
+  });
+}
+
+// Cria um grupo tipo "SPLITTER CONECTORIZADO" / "ALÇA": ao marcar o item
+// principal, abre as sub-opções (razão do splitter ou tamanho da alça),
+// que podem ter mais de uma marcada.
+function buildToggleGroup(containerId, enableId, label, options, optClass){
+  const wrap = document.getElementById(containerId);
+  wrap.innerHTML = `
+    <div class="toggle-row">
+      <label><input type="checkbox" id="${enableId}"> ${label}</label>
+      <div class="sub-options" id="${enableId}_opts">
+        ${options.map(o=>`<label><input type="checkbox" class="${optClass}" value="${o}"> ${o}</label>`).join('')}
+      </div>
+    </div>
+  `;
+  const enableEl = document.getElementById(enableId);
+  const optsEl = document.getElementById(enableId+'_opts');
+  enableEl.addEventListener('change', ()=>{
+    optsEl.style.display = enableEl.checked ? 'flex' : 'none';
+    if(!enableEl.checked){
+      optsEl.querySelectorAll('input[type=checkbox]').forEach(o=>o.checked=false);
     }
-  } else {
-    stream = initialStream;
-    selectedCameraId = initialDeviceId || null;
-  }
-
-  video.srcObject = stream;
-  await video.play();
-
-  placeholder.style.display = "none";
-
-  if (video.readyState < 2) {
-    await new Promise(resolve => {
-      video.addEventListener("loadedmetadata", resolve, { once: true });
-    });
-  }
-
-  /*
-    Mostra no console qual câmera foi realmente selecionada.
-    Isso ajuda a testar aparelhos diferentes.
-  */
-  const activeTrack = stream.getVideoTracks()[0];
-  console.log("Câmera selecionada:", activeTrack?.label);
-  console.log("Configuração:", activeTrack?.getSettings?.());
+    render();
+  });
 }
 
-function normalizeCameraError(error) {
-  if (!error) {
-    return new Error("Não foi possível acessar a câmera.");
-  }
-
-  if (error.name === "NotAllowedError" || error.name === "SecurityError") {
-    return new Error(
-      "O navegador bloqueou o acesso à câmera. Verifique a permissão da câmera para este site."
-    );
-  }
-
-  if (error.name === "NotFoundError") {
-    return new Error("Nenhuma câmera foi encontrada neste dispositivo.");
-  }
-
-  if (error.name === "NotReadableError") {
-    return new Error(
-      "A câmera está sendo usada por outro aplicativo ou não pôde ser iniciada."
-    );
-  }
-
-  if (error.name === "OverconstrainedError") {
-    return new Error(
-      "A câmera solicitada não está disponível neste aparelho."
-    );
-  }
-
-  return new Error(
-    "Não foi possível iniciar a câmera: " +
-    (error.message || error.name || "erro desconhecido")
-  );
+function buildFusaoForm(){
+  buildFusaoCatList();
+  buildFusaoFibra();
+  buildFusaoMateriaisSimples();
+  buildToggleGroup('fusaoSplitterCon', 'f_splitterCon', 'SPLITTER CONECTORIZADO', FUSAO_SPLITTER_RATIOS, 'f-splitterCon-opt');
+  buildToggleGroup('fusaoSplitterDes', 'f_splitterDes', 'SPLITTER DESCONECTORIZADO', FUSAO_SPLITTER_RATIOS, 'f-splitterDes-opt');
+  buildToggleGroup('fusaoAlca', 'f_alca', 'ALÇA', FUSAO_ALCA_TAMANHOS, 'f-alca-opt');
 }
 
-function stopCamera() {
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-  }
+function renderFusao(){
+  const os = val('f_os');
+  const projetoCto = val('f_projetoCto');
+  const tecnico = val('f_tecnico');
+  const f_cidadeSel = val('f_cidade');
+  const f_cidadeOutra = val('f_cidadeOutra');
+  const cidade = f_cidadeSel === 'Outra' ? f_cidadeOutra : f_cidadeSel;
+  document.getElementById('f_cidadeOutraWrap').style.display = f_cidadeSel === 'Outra' ? 'block' : 'none';
+  const obs = val('f_obs');
+  const dbm = document.getElementById('f_dbm').value;
 
-  stream = null;
-  selectedCameraId = null;
-  video.srcObject = null;
-  placeholder.style.display = "grid";
-}
+  document.getElementById('f_dbmValue').textContent = `-${dbm} dBm`;
 
-/*
-  ================================================================
-  CROP MATEMÁTICO
-  ================================================================
+  let matLinhas = [];
 
-  O vídeo pode ser, por exemplo, 1920x1080 enquanto o elemento visual
-  possui 390x220 ou outra proporção.
-
-  Além disso, usamos object-fit: cover. Isso significa que parte da
-  imagem real pode ficar fora do elemento visual.
-
-  Por isso NÃO fazemos simplesmente:
-      ROI% * video.videoWidth
-
-  Primeiro calculamos a escala real usada pelo object-fit: cover e o
-  deslocamento (crop) causado pela diferença de proporção.
-
-  Depois convertemos a moldura visual em coordenadas dos pixels reais
-  da câmera.
-
-  O canvas final contém EXCLUSIVAMENTE a área verde.
-*/
-function getVideoCropRect() {
-  const containerRect = cameraWrap.getBoundingClientRect();
-
-  const sourceW = video.videoWidth;
-  const sourceH = video.videoHeight;
-
-  if (!sourceW || !sourceH) {
-    throw new Error("A resolução da câmera ainda não está disponível.");
-  }
-
-  const roiLeft = containerRect.width * ROI.x / 100;
-  const roiTop = containerRect.height * ROI.y / 100;
-  const roiWidth = containerRect.width * ROI.width / 100;
-  const roiHeight = containerRect.height * ROI.height / 100;
-
-  /*
-    object-fit: cover:
-    a escala é determinada pelo maior fator necessário para preencher
-    toda a caixa visual.
-  */
-  const scale = Math.max(
-    containerRect.width / sourceW,
-    containerRect.height / sourceH
-  );
-
-  const renderedW = sourceW * scale;
-  const renderedH = sourceH * scale;
-
-  const offsetX = (renderedW - containerRect.width) / 2;
-  const offsetY = (renderedH - containerRect.height) / 2;
-
-  const sourceX = (roiLeft + offsetX) / scale;
-  const sourceY = (roiTop + offsetY) / scale;
-  const sourceWROI = roiWidth / scale;
-  const sourceHROI = roiHeight / scale;
-
-  return {
-    sx: Math.max(0, Math.floor(sourceX)),
-    sy: Math.max(0, Math.floor(sourceY)),
-    sw: Math.min(sourceW - Math.floor(sourceX), Math.floor(sourceWROI)),
-    sh: Math.min(sourceH - Math.floor(sourceY), Math.floor(sourceHROI))
-  };
-}
-
-/*
-  Faz a captura real da ROI.
-
-  Para código de barras, não aplicamos filtros, contraste ou grayscale
-  antes da leitura. Isso preserva os detalhes finos das barras.
-*/
-function captureCrop() {
-  const rect = getVideoCropRect();
-
-  if (rect.sw <= 0 || rect.sh <= 0) {
-    throw new Error("A área de leitura ficou fora da imagem da câmera.");
-  }
-
-  cropCanvas.width = rect.sw;
-  cropCanvas.height = rect.sh;
-
-  const ctx = cropCanvas.getContext("2d", {
-    alpha: false,
-    willReadFrequently: true
+  FUSAO_FIBRA_TAMANHOS.forEach(t=>{
+    const cb = document.getElementById('f_fibra_'+t+'_chk');
+    if(cb && cb.checked){
+      const m = qty(val('f_fibra_'+t+'_metros'));
+      matLinhas.push(`[X] FIBRA AS ${t}${m !== "" ? ` — METRAGEM: ${m}` : ''}`);
+    }
   });
 
-  ctx.drawImage(
-    video,
-    rect.sx,
-    rect.sy,
-    rect.sw,
-    rect.sh,
-    0,
-    0,
-    rect.sw,
-    rect.sh
-  );
-
-  return cropCanvas;
-}
-
-/*
-  ================================================================
-  CÓDIGO DE BARRAS
-  ================================================================
-
-  O ZXing recebe o canvas já recortado.
-
-  Portanto ele NÃO recebe:
-    - o vídeo inteiro;
-    - os pixels fora da moldura;
-    - a imagem completa da câmera.
-
-  Formatos suportados pela biblioteca incluem, entre outros:
-    EAN-13, EAN-8, UPC, Code 128, Code 39, ITF e QR Code.
-*/
-function tryBarcode(canvas) {
-  if (!barcodeReader) {
-    barcodeReader = new ZXingBrowser.BrowserMultiFormatReader();
-  }
-
-  try {
-    const decoded = barcodeReader.decodeFromCanvas(canvas);
-    const text = decoded?.getText?.() || "";
-
-    return text.trim() || null;
-  } catch (error) {
-    // "Não encontrado" é normal durante a busca.
-    return null;
-  }
-}
-
-/*
-  ================================================================
-  LEITURA
-  ================================================================
-*/
-
-async function startReading() {
-  if (running) return;
-
-  showResult("", "—");
-  setProgress(true);
-  setStatus("Iniciando câmera...", "running");
-
-  startBtn.disabled = true;
-  stopBtn.disabled = false;
-
-  try {
-    await startCamera();
-
-    running = true;
-    setStatus("Procurando código de barras...", "running");
-
-    scanLoop();
-  } catch (error) {
-    running = false;
-    setProgress(false);
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-
-    setStatus(error.message || "Não foi possível iniciar a câmera.", "error");
-  }
-}
-
-function scanLoop() {
-  if (!running) return;
-
-  try {
-    /*
-      Capture sempre antes de chamar o detector.
-      Isso garante que o ZXing veja somente a ROI.
-    */
-    const crop = captureCrop();
-    const barcode = tryBarcode(crop);
-
-    if (barcode) {
-      finishReading(barcode);
-      return;
+  FUSAO_MATERIAIS_SIMPLES.forEach(([id,label])=>{
+    if(document.getElementById(id).checked){
+      const q = qty(val(id+'_qtd'));
+      matLinhas.push(`[X] ${label}${q !== "" ? ` — QTD: ${q}` : ''}`);
     }
-  } catch (error) {
-    console.warn("Falha na tentativa de leitura:", error);
+  });
+
+  function linhasToggleGroup(enableId, label, optClass){
+    if(!document.getElementById(enableId).checked) return;
+    document.querySelectorAll('.'+optClass+':checked').forEach(o=>{
+      matLinhas.push(`[X] ${label} ${o.value}`);
+    });
   }
+  linhasToggleGroup('f_splitterCon', 'SPLITTER CONECTORIZADO', 'f-splitterCon-opt');
+  linhasToggleGroup('f_splitterDes', 'SPLITTER DESCONECTORIZADO', 'f-splitterDes-opt');
+  linhasToggleGroup('f_alca', 'ALÇA', 'f-alca-opt');
 
-  scanTimer = setTimeout(scanLoop, SCAN_INTERVAL_MS);
+  const matBlock = matLinhas.join('\n');
+
+  const output = `CATEGORIA:
+
+[X] ${selectedFusaoCat}
+
+OS: ${ph(os)}
+PROJETO-CTO:${ph(projetoCto)}
+TÉCNICO/AUXILIAR: ${ph(tecnico)}
+CIDADE: ${ph(cidade)}
+OBS: ${ph(obs)}
+
+MATERIAL UTILIZADO:
+${matBlock}
+
+SINAL DA CAIXA: -${dbm} dBm`;
+
+  document.getElementById('output').textContent = output;
 }
 
-function finishReading(code) {
-  if (!running) return;
-
-  /*
-    Para código de barras, retornamos SOMENTE o conteúdo lido.
-    Nenhum texto adicional é colocado no resultado.
-  */
-  showResult(code, "Código de barras");
-  setStatus("✓ Código de barras detectado. Leitura concluída.", "success");
-  setProgress(false);
-
-  stopReading(false);
+function buildCatList(){
+  const wrap = document.getElementById('catList');
+  wrap.innerHTML = CATEGORIAS.map(c => `
+    <label class="cat-opt${c===selectedCat?' active':''}" data-cat="${c}">
+      <input type="radio" name="categoria" value="${c}" ${c===selectedCat?'checked':''}>
+      ${c}
+    </label>
+  `).join('');
+  wrap.querySelectorAll('.cat-opt').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      selectedCat = el.dataset.cat;
+      wrap.querySelectorAll('.cat-opt').forEach(o=>o.classList.remove('active'));
+      el.classList.add('active');
+      render();
+    });
+  });
 }
 
-function stopReading(showMessage = true) {
-  running = false;
-
-  if (scanTimer) {
-    clearTimeout(scanTimer);
-    scanTimer = null;
-  }
-
-  stopCamera();
-
-  startBtn.disabled = false;
-  stopBtn.disabled = true;
-
-  if (showMessage) {
-    setStatus("Leitura interrompida.", "warning");
-    setProgress(false);
-  }
+function buildMateriais(){
+  const wrap = document.getElementById('materiais');
+  wrap.innerHTML = MATERIAIS.map(([id,label])=>`
+    <div class="mat-row">
+      <span>${label}</span>
+      <input type="number" min="0" id="${id}" value="">
+    </div>
+  `).join('');
 }
 
-/*
-  ================================================================
-  INTERFACE
-  ================================================================
-*/
-
-function setStatus(text, type = "") {
-  statusText.textContent = text;
-  statusBox.className = "status" + (type ? " " + type : "");
+function buildApps(){
+  const wrap = document.getElementById('appsRow');
+  wrap.innerHTML = APPS.map(([id,label])=>`
+    <label><input type="checkbox" id="${id}"> ${label}</label>
+  `).join('');
 }
 
-function setProgress(active) {
-  progress.classList.toggle("active", active);
-}
+function val(id){ return document.getElementById(id).value.trim(); }
+function ph(v, fallback=""){ return v ? v : fallback; }
+function chk(cond){ return cond ? "X" : " "; }
+function qty(v){ return v && Number(v) > 0 ? v : ""; }
 
-function showResult(text, method) {
-  resultField.value = text || "";
-  methodField.textContent = method || "—";
-}
+function render(){
+  if(equipeAtual === 'fusao'){ renderFusao(); return; }
 
-startBtn.addEventListener("click", startReading);
+  const isRetirada = selectedCat === 'RETIRADA';
 
-stopBtn.addEventListener("click", () => {
-  stopReading(true);
-});
+  document.getElementById('secIdentificacao').style.display = isRetirada ? 'none' : '';
+  document.getElementById('secEquipamentos').style.display = isRetirada ? 'none' : '';
+  document.getElementById('secRede').style.display = isRetirada ? 'none' : '';
+  document.getElementById('secMateriais').style.display = isRetirada ? 'none' : '';
+  document.getElementById('secContratoApps').style.display = isRetirada ? 'none' : '';
+  document.getElementById('secRetirada').style.display = isRetirada ? '' : 'none';
 
-clearBtn.addEventListener("click", () => {
-  showResult("", "—");
-  setStatus("Resultado limpo.", "");
-});
+  if(isRetirada){
+    const retOs = val('ret_os');
+    const retNome = val('ret_nome');
+    const retModeloOnu = val('ret_modeloOnu');
+    const retPon = val('ret_pon');
+    const retRoteador = val('ret_roteador');
+    const retSerial = val('ret_serial');
+    const retQntPlaqueta = qty(val('ret_qntPlaqueta'));
+    const retQntEsticador = qty(val('ret_qntEsticador'));
+    const retQntDrop = qty(val('ret_qntDrop'));
+    const retQntConVerde = qty(val('ret_qntConVerde'));
+    const retQntConAzul = qty(val('ret_qntConAzul'));
+    const retObs = val('ret_obs');
+    const retTecnico = val('ret_tecnico');
+    const retCidade = val('ret_cidade');
 
-copyBtn.addEventListener("click", async () => {
-  const text = resultField.value.trim();
+    const output = `*RETIRADA CONCLUÍDA*
 
-  if (!text) {
-    setStatus("Não há código para copiar.", "warning");
+*O.S:* ${ph(retOs)}
+*NOME:* ${ph(retNome)}
+*MODELO DA ONU:* ${ph(retModeloOnu)}
+*PON:* ${ph(retPon)}
+*ROTEADOR:* ${ph(retRoteador)}
+*SERIAL:* ${ph(retSerial)}
+*QNT.PLAQUETA:* ${ph(retQntPlaqueta)}
+*QNT. ESTICADOR:* ${ph(retQntEsticador)}
+*QNT. DROP:* ${ph(retQntDrop)}
+*QNT. CONECTOR VERDE:* ${ph(retQntConVerde)}
+*QNT. CONECTOR AZUL:* ${ph(retQntConAzul)}
+*OBS:* ${ph(retObs)}
+*TÉCNICO:* ${ph(retTecnico)}
+*CIDADE:* ${ph(retCidade)}`;
+
+    document.getElementById('output').textContent = output;
     return;
   }
 
-  try {
-    await navigator.clipboard.writeText(text);
-    setStatus("Código copiado.", "success");
-  } catch {
-    /*
-      Fallback para navegadores/ambientes que não liberam Clipboard API.
-    */
-    resultField.removeAttribute("readonly");
-    resultField.select();
-    document.execCommand("copy");
-    resultField.setAttribute("readonly", "readonly");
-    window.getSelection()?.removeAllRanges();
+  const os = val('os');
+  const cliente = val('cliente');
+  const cidadeSel = val('cidade');
+  const cidadeOutra = val('cidadeOutra');
+  const cidade = cidadeSel === 'Outra' ? cidadeOutra : cidadeSel;
+  document.getElementById('cidadeOutraWrap').style.display = cidadeSel === 'Outra' ? 'block' : 'none';
+  const tecnico = val('tecnico');
+  const onuAntiga = val('onuAntiga');
+  const ponOnuAntiga = val('ponOnuAntiga');
+  const roteadorAntigo = val('roteadorAntigo');
+  const snRoteadorAntigo = val('snRoteadorAntigo');
+  const onu = val('onu');
+  const ponOnu = val('ponOnu');
+  const roteador = val('roteador');
+  const ponRot = val('ponRot');
+  const cto = val('cto');
+  const porta=document.getElementById('porta').value;
+  const wifi = val('wifi');
+  const senha = val('senha');
+  const obs = val('obs');
+  const conectados = val('conectados');
+  const descricaoServico = val('descricaoServico') || 'DESCRIÇÃO DO SERVIÇO';
 
-    setStatus("Código copiado.", "success");
+  const contrato = document.querySelector('input[name=contrato]:checked').value;
+  const ponto = document.querySelector('input[name=ponto]:checked').value;
+  const contratoMotivo = val('contratoMotivo');
+  const pontoMotivo = val('pontoMotivo');
+  const dbmJust=val('dbmJust');
+ document.getElementById('dbmJustWrap').style.display=Number(porta)>=25?'block':'none';
+
+  document.getElementById('contratoMotivoWrap').style.display = contrato==='nao' ? 'block':'none';
+  document.getElementById('pontoMotivoWrap').style.display = ponto==='nao' ? 'block':'none';
+
+  const isInstalacao = selectedCat === 'INSTALAÇÃO';
+  document.getElementById('equipAntigoWrap').style.display = isInstalacao ? 'none' : '';
+
+  let catBlock = selectedCat;
+
+  let matBlock = MATERIAIS
+    .filter(([id]) => qty(val(id)) !== "")
+    .map(([id,label])=>{
+      const q = qty(val(id));
+      return `[${q}] ${label}`;
+    }).join('\n');
+
+  let appsBlock = APPS.map(([id,label])=>{
+    const checked = document.getElementById(id).checked;
+    return `[${chk(checked)}] ${label}`;
+  }).join('\n');
+
+  const SEP = '';
+
+  const equipAntigoBlock = isInstalacao ? '' : `ONU ANTIGA: ${ph(onuAntiga)}
+PON: ${ph(ponOnuAntiga)}
+ROTEADOR ANTIGO: ${ph(roteadorAntigo)}
+SN: ${ph(snRoteadorAntigo)}
+${SEP}
+`;
+
+  const output = `${descricaoServico}
+CATEGORIA:
+${catBlock}
+${SEP}
+OS: ${ph(os)}
+CLIENTE: ${ph(cliente)}
+CIDADE: ${ph(cidade)}
+
+${equipAntigoBlock}ONU NOVA: ${ph(onu)}
+PON:${ph(ponOnu)}
+ROTEADOR NOVO: ${ph(roteador)}
+SN: ${ph(ponRot)}
+${SEP}
+CTO: ${ph(cto)}
+DBM: -${ph(porta)} dBm${Number(porta)>=25?`\nJUSTIFICATIVA DBM: ${ph(dbmJust)}`:''}\n[ ${chk(document.getElementById('ipv').checked)} ] IPV6 e IPV4\n[ ${chk(document.getElementById('remoto').checked)} ] ACESSO REMOTO ATIVO
+${SEP}
+REDE WIFI:${ph(wifi)}
+SENHA:${ph(senha)}
+${SEP}
+TÉCNICO: ${ph(tecnico)}
+OBS: ${ph(obs)}
+${SEP}
+LISTA DE MATERIAIS UTILIZADOS:
+${matBlock}
+${SEP}
+CONTRATO E APLICATIVOS
+CONTRATO ASSINADO: [ ${chk(contrato==='sim')} ] SIM [ ${chk(contrato==='nao')} ] NÃO
+SE NÃO, PORQUÊ: ${contrato==='nao' ? ph(contratoMotivo) : ''}
+PONTO DE REDE: [ ${chk(ponto==='sim')} ] SIM [ ${chk(ponto==='nao')} ] NÃO
+SE NÃO, PORQUÊ: ${ponto==='nao' ? ph(pontoMotivo) : ''}
+${SEP}
+APPS INSTALADOS NO CLIENTE
+${appsBlock}
+CONECTADOS: ${ph(conectados,'')}`;
+
+  document.getElementById('output').textContent = output;
+}
+
+function copyToClipboard(text){
+  return new Promise((resolve)=>{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(()=>resolve(true)).catch(()=>resolve(fallbackCopy(text)));
+    } else {
+      resolve(fallbackCopy(text));
+    }
+  });
+}
+
+function fallbackCopy(text){
+  try{
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '-9999px';
+    ta.setAttribute('readonly', '');
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  }catch(e){
+    return false;
   }
-});
+}
 
-/*
-  Ao mudar orientação ou tamanho da janela, a ROI continua sendo
-  calculada em porcentagem e, portanto, acompanha automaticamente
-  o novo tamanho do visor.
-*/
-window.addEventListener("resize", applyROI);
-window.addEventListener("orientationchange", () => {
-  setTimeout(applyROI, 250);
-});
+// =====================================================================
+// LEITOR DE CÓDIGO DE BARRAS (câmera do dispositivo)
+// Acionado apenas quando o usuário toca no botão 📷 — nunca automático.
+// =====================================================================
+let scannerStream = null;
+let scannerTargetInputId = null;
+let scannerRAF = null;
+let zxingReader = null;
+let zxingLoading = null;
 
-/*
-  Ao sair da página, desligamos a câmera.
-  Nenhuma imagem é salva.
-*/
-window.addEventListener("pagehide", () => {
-  running = false;
+async function openScanner(targetInputId){
+  scannerTargetInputId = targetInputId;
+  const modal = document.getElementById('scannerModal');
+  const status = document.getElementById('scannerStatus');
+  modal.classList.add('open');
+  status.textContent = 'Iniciando câmera...';
 
-  if (scanTimer) {
-    clearTimeout(scanTimer);
-    scanTimer = null;
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    status.textContent = 'Este navegador não suporta acesso à câmera.';
+    return;
   }
 
-  stopCamera();
+  try{
+    scannerStream = await navigator.mediaDevices.getUserMedia({
+      audio:false,
+      video:{
+        facingMode:{ ideal:'environment' }, // câmera principal (traseira)
+        width:{ ideal:1280 },
+        height:{ ideal:720 }
+      }
+    });
+  }catch(err){
+    status.textContent = 'Não foi possível acessar a câmera. Verifique as permissões do navegador.';
+    console.error(err);
+    return;
+  }
+
+  const video = document.getElementById('scannerVideo');
+  video.srcObject = scannerStream;
+  try{ await video.play(); }catch(e){ /* alguns navegadores exigem toque para dar play, autoplay já cobre a maioria */ }
+
+  // tenta abrir em tela cheia e travar a orientação na horizontal
+  // (funciona principalmente em Android/Chrome; em navegadores sem suporte, ignora)
+  try{
+    if(modal.requestFullscreen) await modal.requestFullscreen();
+  }catch(e){ /* fullscreen indisponível, segue sem ele */ }
+  try{
+    if(screen.orientation && screen.orientation.lock){
+      await screen.orientation.lock('landscape');
+    }
+  }catch(e){ /* travamento de orientação indisponível neste navegador */ }
+
+  status.textContent = 'Aponte a câmera para o código de barras';
+  setupTorchButton();
+  startDetection(video);
+}
+
+function setupTorchButton(){
+  const torchBtn = document.getElementById('scannerTorchBtn');
+  torchBtn.style.display = 'none';
+  torchBtn.classList.remove('on');
+  if(!scannerStream) return;
+  const track = scannerStream.getVideoTracks()[0];
+  if(!track || !track.getCapabilities) return;
+  let caps = {};
+  try{ caps = track.getCapabilities(); }catch(e){ return; }
+  if(caps && caps.torch){
+    torchBtn.style.display = '';
+  }
+}
+
+function toggleTorch(){
+  if(!scannerStream) return;
+  const track = scannerStream.getVideoTracks()[0];
+  if(!track) return;
+  const torchBtn = document.getElementById('scannerTorchBtn');
+  const isOn = !torchBtn.classList.contains('on');
+  track.applyConstraints({ advanced:[{ torch:isOn }] })
+    .then(()=>{ torchBtn.classList.toggle('on', isOn); })
+    .catch(()=>{ /* lanterna não suportada neste dispositivo */ });
+}
+
+function startDetection(video){
+  if('BarcodeDetector' in window){
+    startNativeDetection(video);
+  } else {
+    loadZXingAndStart(video);
+  }
+}
+
+async function startNativeDetection(video){
+  let detector;
+  try{
+    detector = new BarcodeDetector({
+      formats:['code_128','code_39','code_93','codabar','ean_13','ean_8','upc_a','upc_e','itf','qr_code']
+    });
+  }catch(e){
+    detector = new BarcodeDetector();
+  }
+  const tick = async ()=>{
+    if(!scannerStream) return; // leitor foi fechado
+    try{
+      const codes = await detector.detect(video);
+      if(codes && codes.length){
+        onCodeDetected(codes[0].rawValue);
+        return;
+      }
+    }catch(e){ /* frame não pôde ser processado, tenta o próximo */ }
+    scannerRAF = requestAnimationFrame(tick);
+  };
+  scannerRAF = requestAnimationFrame(tick);
+}
+
+function loadZXingAndStart(video){
+  const status = document.getElementById('scannerStatus');
+  status.textContent = 'Carregando leitor...';
+
+  if(window.ZXing){
+    runZXing(video);
+    return;
+  }
+  if(!zxingLoading){
+    zxingLoading = new Promise((resolve, reject)=>{
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js';
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+  zxingLoading.then(()=>{
+    if(scannerStream) runZXing(video); // só inicia se o leitor ainda estiver aberto
+  }).catch(()=>{
+    status.textContent = 'Não foi possível carregar o leitor. Digite o código manualmente.';
+  });
+}
+
+function runZXing(video){
+  document.getElementById('scannerStatus').textContent = 'Aponte a câmera para o código de barras';
+  zxingReader = new ZXing.BrowserMultiFormatReader();
+  zxingReader.decodeFromVideoElement(video, (result, err)=>{
+    if(result){ onCodeDetected(result.getText()); }
+  });
+}
+
+function onCodeDetected(value){
+  if(!scannerTargetInputId) return;
+  const input = document.getElementById(scannerTargetInputId);
+  if(input){
+    input.value = value.trim();
+    input.dispatchEvent(new Event('input', { bubbles:true }));
+  }
+  closeScanner();
+}
+
+function closeScanner(){
+  const modal = document.getElementById('scannerModal');
+  modal.classList.remove('open');
+  document.getElementById('scannerStatus').textContent = '';
+
+  if(scannerRAF){ cancelAnimationFrame(scannerRAF); scannerRAF = null; }
+  if(zxingReader){ try{ zxingReader.reset(); }catch(e){} zxingReader = null; }
+  if(scannerStream){
+    scannerStream.getTracks().forEach(t=>t.stop());
+    scannerStream = null;
+  }
+  const video = document.getElementById('scannerVideo');
+  if(video) video.srcObject = null;
+
+  if(document.fullscreenElement){ document.exitFullscreen().catch(()=>{}); }
+  try{ if(screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); }catch(e){}
+
+  scannerTargetInputId = null;
+}
+
+function copyOutput(){
+  const text = document.getElementById('output').textContent;
+  const btn = document.getElementById('copyBtn');
+  const original = btn.textContent;
+  copyToClipboard(text).then((ok)=>{
+    btn.textContent = ok ? 'COPIADO ✓' : 'TOQUE E SEGURE PRA COPIAR';
+    btn.classList.toggle('copied', ok);
+    setTimeout(()=>{ btn.textContent = original; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+buildCatList();
+buildMateriais();
+buildApps();
+buildFusaoForm();
+setTimeout(()=>{const s=document.getElementById('porta');const v=document.getElementById('dbmValue');const u=()=>v.textContent='-'+s.value+' dBm';s.addEventListener('input',u);u();},0);
+
+let equipeAtual = 'padrao';
+document.querySelectorAll('#equipeToggle .equipe-opt').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    equipeAtual = el.dataset.equipe;
+    document.querySelectorAll('#equipeToggle .equipe-opt').forEach(o=>o.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('formPadrao').style.display = equipeAtual === 'padrao' ? '' : 'none';
+    document.getElementById('formFusao').style.display = equipeAtual === 'fusao' ? '' : 'none';
+    render();
+  });
 });
 
-/* Inicialização visual. */
-applyROI();
+document.querySelectorAll('input, textarea, select').forEach(el=>{
+  el.addEventListener('input', render);
+  el.addEventListener('change', render);
+});
 
-if (!window.isSecureContext && location.hostname !== "localhost") {
-  setStatus(
-    "A câmera exige HTTPS. Use GitHub Pages ou outro endereço HTTPS.",
-    "warning"
-  );
+render();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js');
+  });
 }
 </script>
-</body>
+
+<button id="mobileCopy" onclick="copyOutput()" style="position:fixed;left:12px;right:12px;bottom:12px;height:58px;border:none;border-radius:16px;background:#00c2a8;font-weight:bold;z-index:999">COPIAR SCRIPT</button></body>
 </html>
