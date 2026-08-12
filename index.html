@@ -189,7 +189,8 @@
     display:flex; flex-direction:column; align-items:center; gap:10px;
   }
   #scannerStatus{color:var(--text-dim); font-size:12.5px; text-align:center;}
-  #scannerTorchBtn{
+  .scanner-btn-row{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+  #scannerTorchBtn, #scannerSwitchBtn{
     background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:10px;
     padding:10px 18px; font-size:13px; cursor:pointer; display:none;
   }
@@ -439,7 +440,10 @@
     <div class="scanner-frame"></div>
   </div>
   <div class="scanner-footer">
-    <button id="scannerTorchBtn" onclick="toggleTorch()">🔦 Lanterna</button>
+    <div class="scanner-btn-row">
+      <button id="scannerSwitchBtn" onclick="switchCamera()">🔄 Trocar câmera</button>
+      <button id="scannerTorchBtn" onclick="toggleTorch()">🔦 Lanterna</button>
+    </div>
     <div id="scannerStatus">Aponte a câmera para o código de barras</div>
   </div>
 </div>
@@ -913,29 +917,33 @@ let scannerTargetInputId = null;
 let scannerRAF = null;
 let zxingReader = null;
 let zxingLoading = null;
+let scannerCameraCandidates = []; // deviceIds das câmeras traseiras disponíveis
+let scannerCameraIndex = 0;
 
-// Tenta identificar a câmera traseira "principal" do aparelho (evita que o
-// Android selecione automaticamente uma lente ultra-wide/teles, que costuma
-// focar mal em distâncias curtas de leitura de código de barras).
-async function getMainBackCameraDeviceId(){
+// Lista as câmeras traseiras do aparelho, colocando primeiro as que não
+// parecem ser lentes auxiliares (ultra-wide/tele/macro) pelo nome. Em muitos
+// Android com várias lentes traseiras, o navegador escolhe a angular por
+// padrão ao pedir "environment" — por isso oferecemos também o botão de
+// trocar câmera manualmente, caso a escolha automática erre.
+async function listBackCameraCandidates(){
   let devices = [];
-  try{ devices = await navigator.mediaDevices.enumerateDevices(); }catch(e){ return null; }
+  try{ devices = await navigator.mediaDevices.enumerateDevices(); }catch(e){ return []; }
   const videoInputs = devices.filter(d=>d.kind==='videoinput');
-  if(videoInputs.length===0) return null;
+  if(videoInputs.length===0) return [];
 
-  const isBack = l => /back|traseira|rear|environment/i.test(l);
-  const isAuxLens = l => /ultra|wide[\s-]?angle|tele(photo)?|macro/i.test(l);
+  const isFront = l => /front|frontal|user|selfie/i.test(l);
+  const isAuxLens = l => /ultra|wide[\s-]?angle|angular|tele(photo)?|macro/i.test(l);
 
-  // 1) câmera traseira sem indicação de lente auxiliar (ultra-wide/tele) = principal
-  let candidate = videoInputs.find(d=>isBack(d.label) && !isAuxLens(d.label));
-  // 2) qualquer câmera traseira
-  if(!candidate) candidate = videoInputs.find(d=>isBack(d.label));
-  // 3) sem labels disponíveis (permissão ainda não concedida): heurística comum no
-  // Android é a câmera traseira principal vir por último na lista
-  if(!candidate && videoInputs.length>1) candidate = videoInputs[videoInputs.length-1];
-  if(!candidate) candidate = videoInputs[0];
+  const backCandidates = videoInputs.filter(d=>!isFront(d.label));
+  const pool = backCandidates.length ? backCandidates : videoInputs;
 
-  return candidate.deviceId || null;
+  const sorted = [...pool].sort((a,b)=>{
+    const aAux = isAuxLens(a.label) ? 1 : 0;
+    const bAux = isAuxLens(b.label) ? 1 : 0;
+    return aAux - bAux;
+  });
+
+  return sorted.map(d=>d.deviceId);
 }
 
 async function openScanner(targetInputId){
@@ -961,15 +969,34 @@ async function openScanner(targetInputId){
     return;
   }
 
-  const mainDeviceId = await getMainBackCameraDeviceId();
-  const videoConstraints = mainDeviceId
-    ? { deviceId:{ exact:mainDeviceId }, width:{ ideal:1920 }, height:{ ideal:1080 } }
+  scannerCameraCandidates = await listBackCameraCandidates();
+  scannerCameraIndex = 0;
+
+  await startCameraStream();
+  if(!scannerStream) return; // falhou, mensagem de erro já foi exibida
+
+  status.textContent = 'Aponte a câmera para o código de barras';
+  startDetection(document.getElementById('scannerVideo'));
+}
+
+// (Re)inicia o stream de vídeo usando a câmera atual da lista de candidatas.
+// Usado tanto na abertura do leitor quanto ao trocar de câmera manualmente.
+async function startCameraStream(){
+  const status = document.getElementById('scannerStatus');
+
+  if(scannerStream){
+    scannerStream.getTracks().forEach(t=>t.stop());
+    scannerStream = null;
+  }
+
+  const deviceId = scannerCameraCandidates[scannerCameraIndex];
+  const videoConstraints = deviceId
+    ? { deviceId:{ exact:deviceId }, width:{ ideal:1920 }, height:{ ideal:1080 } }
     : { facingMode:{ ideal:'environment' }, width:{ ideal:1920 }, height:{ ideal:1080 } };
 
   try{
     scannerStream = await navigator.mediaDevices.getUserMedia({ audio:false, video:videoConstraints });
   }catch(err){
-    // se a câmera específica falhar, cai de volta para o modo genérico
     try{
       scannerStream = await navigator.mediaDevices.getUserMedia({
         audio:false,
@@ -995,9 +1022,23 @@ async function openScanner(targetInputId){
     }
   }catch(e){ /* ajuste de foco não suportado neste dispositivo, ignora */ }
 
-  status.textContent = 'Aponte a câmera para o código de barras';
   setupTorchButton();
-  startDetection(video);
+
+  const switchBtn = document.getElementById('scannerSwitchBtn');
+  switchBtn.style.display = scannerCameraCandidates.length > 1 ? '' : 'none';
+}
+
+// Alterna manualmente para a próxima câmera traseira disponível — útil
+// quando a câmera escolhida automaticamente é a angular/ultra-wide e não
+// está focando bem no código de barras.
+async function switchCamera(){
+  if(scannerCameraCandidates.length < 2) return;
+  scannerCameraIndex = (scannerCameraIndex + 1) % scannerCameraCandidates.length;
+  document.getElementById('scannerStatus').textContent = 'Trocando de câmera...';
+  await startCameraStream();
+  if(scannerStream){
+    document.getElementById('scannerStatus').textContent = 'Aponte a câmera para o código de barras';
+  }
 }
 
 function setupTorchButton(){
@@ -1112,6 +1153,8 @@ function closeScanner(){
   const video = document.getElementById('scannerVideo');
   if(video) video.srcObject = null;
 
+  scannerCameraCandidates = [];
+  scannerCameraIndex = 0;
   scannerTargetInputId = null;
 }
 
