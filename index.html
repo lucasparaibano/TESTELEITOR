@@ -180,7 +180,7 @@
   }
   #scannerVideo{ width:100%; height:100%; object-fit:cover; }
   .scanner-frame{
-    position:absolute; left:6%; right:6%; top:32%; bottom:32%;
+    position:absolute; left:6%; right:6%; top:41%; bottom:41%;
     border:3px solid var(--teal); border-radius:14px; box-shadow:0 0 0 2000px rgba(0,0,0,.4);
     pointer-events:none;
   }
@@ -914,6 +914,30 @@ let scannerRAF = null;
 let zxingReader = null;
 let zxingLoading = null;
 
+// Tenta identificar a câmera traseira "principal" do aparelho (evita que o
+// Android selecione automaticamente uma lente ultra-wide/teles, que costuma
+// focar mal em distâncias curtas de leitura de código de barras).
+async function getMainBackCameraDeviceId(){
+  let devices = [];
+  try{ devices = await navigator.mediaDevices.enumerateDevices(); }catch(e){ return null; }
+  const videoInputs = devices.filter(d=>d.kind==='videoinput');
+  if(videoInputs.length===0) return null;
+
+  const isBack = l => /back|traseira|rear|environment/i.test(l);
+  const isAuxLens = l => /ultra|wide[\s-]?angle|tele(photo)?|macro/i.test(l);
+
+  // 1) câmera traseira sem indicação de lente auxiliar (ultra-wide/tele) = principal
+  let candidate = videoInputs.find(d=>isBack(d.label) && !isAuxLens(d.label));
+  // 2) qualquer câmera traseira
+  if(!candidate) candidate = videoInputs.find(d=>isBack(d.label));
+  // 3) sem labels disponíveis (permissão ainda não concedida): heurística comum no
+  // Android é a câmera traseira principal vir por último na lista
+  if(!candidate && videoInputs.length>1) candidate = videoInputs[videoInputs.length-1];
+  if(!candidate) candidate = videoInputs[0];
+
+  return candidate.deviceId || null;
+}
+
 async function openScanner(targetInputId){
   scannerTargetInputId = targetInputId;
   const modal = document.getElementById('scannerModal');
@@ -926,35 +950,50 @@ async function openScanner(targetInputId){
     return;
   }
 
+  // pede permissão com a câmera traseira genérica primeiro — necessário para
+  // que os labels das câmeras fiquem disponíveis no enumerateDevices()
   try{
-    scannerStream = await navigator.mediaDevices.getUserMedia({
-      audio:false,
-      video:{
-        facingMode:{ ideal:'environment' }, // câmera principal (traseira)
-        width:{ ideal:1280 },
-        height:{ ideal:720 }
-      }
-    });
+    const tmp = await navigator.mediaDevices.getUserMedia({ audio:false, video:{ facingMode:{ ideal:'environment' } } });
+    tmp.getTracks().forEach(t=>t.stop());
   }catch(err){
     status.textContent = 'Não foi possível acessar a câmera. Verifique as permissões do navegador.';
     console.error(err);
     return;
   }
 
+  const mainDeviceId = await getMainBackCameraDeviceId();
+  const videoConstraints = mainDeviceId
+    ? { deviceId:{ exact:mainDeviceId }, width:{ ideal:1920 }, height:{ ideal:1080 } }
+    : { facingMode:{ ideal:'environment' }, width:{ ideal:1920 }, height:{ ideal:1080 } };
+
+  try{
+    scannerStream = await navigator.mediaDevices.getUserMedia({ audio:false, video:videoConstraints });
+  }catch(err){
+    // se a câmera específica falhar, cai de volta para o modo genérico
+    try{
+      scannerStream = await navigator.mediaDevices.getUserMedia({
+        audio:false,
+        video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1280 }, height:{ ideal:720 } }
+      });
+    }catch(err2){
+      status.textContent = 'Não foi possível acessar a câmera. Verifique as permissões do navegador.';
+      console.error(err2);
+      return;
+    }
+  }
+
   const video = document.getElementById('scannerVideo');
   video.srcObject = scannerStream;
   try{ await video.play(); }catch(e){ /* alguns navegadores exigem toque para dar play, autoplay já cobre a maioria */ }
 
-  // tenta abrir em tela cheia e travar a orientação na horizontal
-  // (funciona principalmente em Android/Chrome; em navegadores sem suporte, ignora)
+  // força foco automático contínuo quando o dispositivo suporta
   try{
-    if(modal.requestFullscreen) await modal.requestFullscreen();
-  }catch(e){ /* fullscreen indisponível, segue sem ele */ }
-  try{
-    if(screen.orientation && screen.orientation.lock){
-      await screen.orientation.lock('landscape');
+    const track = scannerStream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if(caps.focusMode && caps.focusMode.includes('continuous')){
+      await track.applyConstraints({ advanced:[{ focusMode:'continuous' }] });
     }
-  }catch(e){ /* travamento de orientação indisponível neste navegador */ }
+  }catch(e){ /* ajuste de foco não suportado neste dispositivo, ignora */ }
 
   status.textContent = 'Aponte a câmera para o código de barras';
   setupTorchButton();
@@ -1072,9 +1111,6 @@ function closeScanner(){
   }
   const video = document.getElementById('scannerVideo');
   if(video) video.srcObject = null;
-
-  if(document.fullscreenElement){ document.exitFullscreen().catch(()=>{}); }
-  try{ if(screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); }catch(e){}
 
   scannerTargetInputId = null;
 }
